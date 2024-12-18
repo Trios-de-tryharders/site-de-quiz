@@ -1,40 +1,21 @@
 import { WebSocketServer } from "ws";
 import { randomUUID } from "node:crypto";
-
-interface CustomWebSocket extends WebSocket {
-  on(event: string, listener: (data: any) => void): this;
-  id: string;
-  username: string;
-}
-
-interface PlayerWebSocket extends CustomWebSocket {
-  score: number;
-  didBuzz: boolean;
-}
-
-interface ClientMessage {
-  username: string;
-  value: string;
-  isWritting: boolean;
-  game: string;
-  type: string;
-}
-
-interface Games {
-  id: string;
-  players: PlayerWebSocket[];
-  state: string;
-}
+import './words.json';
+import { CustomWebSocket, PlayerWebSocket } from "./types/websocket";
+import { ClientMessage } from "./types/messages";
+import { Game, SketchGames } from "./types/game";
+import { SketchGameManager } from "./models/SketchGameManager";
 
 // Initialisation du serveur et écoute sur tous les ports
 const wss = new WebSocketServer({ port: 8081, host: "0.0.0.0" });
 
 // Conserve les clients connectés et autre
-const state: {clients: CustomWebSocket[], typingTimeouts: {}, writting: CustomWebSocket[], games: Games[] }  = {
+const state: {clients: CustomWebSocket[], typingTimeouts: {}, writting: CustomWebSocket[], sketchGames: SketchGameManager[], quizzes: Game[] }  = {
     clients: [],
     typingTimeouts: {}, // Utilise setTimeout pour gérer le 'User is writting' sur le front
     writting: [], // Liste des utilisateurs en train d'écrire
-    games: [] // Liste des parties en cours
+    sketchGames: [], // Liste des parties draw en cours
+    quizzes: [] // Liste des parties de quiz en cours
 };
 
 
@@ -45,6 +26,8 @@ const messageHandlers = {
   writting: (client: CustomWebSocket, message: ClientMessage) => handleWritting(client, message.isWritting),
   createGame: (client: CustomWebSocket, message: ClientMessage) => handleCreateGame(client),
   joinGame: (client: CustomWebSocket, message: ClientMessage) => handleJoinGame(client, message),
+  launchGame: (client: CustomWebSocket, message: ClientMessage) => handleLaunchGame(client, message),
+  guess: (client: CustomWebSocket, message: ClientMessage) => handleGuess(client, message)
 };
 
 // Fonction permettant d'envoyer un message à une liste d'utilisateur
@@ -57,19 +40,15 @@ const handleCreateGame = (client: CustomWebSocket) => {
   
   let gameId = Math.random().toString(36).substring(2, 10)
 
-  while (gameId in state.games) {
+  while (gameId in state.sketchGames) {
     gameId = Math.random().toString(36).substring(2, 10);
   }
 
   const player: PlayerWebSocket = { ...(client as PlayerWebSocket), score: 0, didBuzz: false };
 
-  const game = {
-    id: gameId,
-    players: [player],
-    state: "waiting",
-  };
+  const game = new SketchGameManager(gameId, player);
 
-  state.games.push(game);
+  state.sketchGames.push(game);
 
   client.send(
     JSON.stringify({
@@ -82,23 +61,37 @@ const handleCreateGame = (client: CustomWebSocket) => {
 
 // Fonction permettant de rejoindre une partie
 const handleJoinGame = (client: CustomWebSocket, message: ClientMessage) => {
-  const game = state.games.find((g) => g.id === message.game);
+  const game = state.sketchGames.find((g) => g.id === message.game);
   const player: PlayerWebSocket = { ...(client as PlayerWebSocket), score: 0, didBuzz: false };
 
   if (game && game.state === "waiting" && !game.players.find((p) => p.id === player.id)) {
     game.players.push(player);
-    game.state = "playing";
+  }
+};
 
-    game.players.forEach((p) => {
-      p.send(
-        JSON.stringify({
-          sender: "server",
-          type: "gameStarted",
-          gameId: game.id,
-          players: game.players.map((p) => p.username),
-        })
-      );
-    });
+const handleLaunchGame = (client: CustomWebSocket, message: ClientMessage) => {
+  const game = state.sketchGames.find((g) => g.id === message.game);
+
+  if (game && game.owner.id === client.id) {
+    game.startGame();
+  }
+}
+
+const handleGuess = (client: CustomWebSocket, message: ClientMessage) => {
+  const game = state.sketchGames.find((g) => g.id === message.game);
+
+  if (!game){
+    return;
+  }
+
+  const player = game.players.find((p) => p.id === client.id);
+
+  if (!player){
+    return;
+  }
+
+  if (game.state === "playing") {
+    game.guessWord(player, message.value);
   }
 };
 
