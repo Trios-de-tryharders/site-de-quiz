@@ -7,6 +7,11 @@ interface CustomWebSocket extends WebSocket {
   username: string;
 }
 
+interface PlayerWebSocket extends CustomWebSocket {
+  score: number;
+  didBuzz: boolean;
+}
+
 interface ClientMessage {
   username: string;
   value: string;
@@ -15,14 +20,21 @@ interface ClientMessage {
   type: string;
 }
 
+interface Games {
+  id: string;
+  players: PlayerWebSocket[];
+  state: string;
+}
+
 // Initialisation du serveur et écoute sur tous les ports
 const wss = new WebSocketServer({ port: 8081, host: "0.0.0.0" });
 
 // Conserve les clients connectés et autre
-const state: {clients: CustomWebSocket[], typingTimeouts: {}, writting: CustomWebSocket[] }  = {
+const state: {clients: CustomWebSocket[], typingTimeouts: {}, writting: CustomWebSocket[], games: Games[] }  = {
     clients: [],
     typingTimeouts: {}, // Utilise setTimeout pour gérer le 'User is writting' sur le front
-    writting: []
+    writting: [], // Liste des utilisateurs en train d'écrire
+    games: [] // Liste des parties en cours
 };
 
 
@@ -31,11 +43,63 @@ const messageHandlers = {
   connect: (client: CustomWebSocket, message: ClientMessage) => connectClient(client, message.username),
   message: (client: CustomWebSocket, message: ClientMessage) => handleMessage(client, message.value),
   writting: (client: CustomWebSocket, message: ClientMessage) => handleWritting(client, message.isWritting),
+  createGame: (client: CustomWebSocket, message: ClientMessage) => handleCreateGame(client),
+  joinGame: (client: CustomWebSocket, message: ClientMessage) => handleJoinGame(client, message),
 };
 
 // Fonction permettant d'envoyer un message à une liste d'utilisateur
 const broadcast = (clients: CustomWebSocket[], message) => {
   clients.forEach((client) => client.send(JSON.stringify(message)));
+};
+
+// Fonction permettant de créer une partie
+const handleCreateGame = (client: CustomWebSocket) => {
+  
+  let gameId = Math.random().toString(36).substring(2, 10)
+
+  while (gameId in state.games) {
+    gameId = Math.random().toString(36).substring(2, 10);
+  }
+
+  const player: PlayerWebSocket = { ...(client as PlayerWebSocket), score: 0, didBuzz: false };
+
+  const game = {
+    id: gameId,
+    players: [player],
+    state: "waiting",
+  };
+
+  state.games.push(game);
+
+  client.send(
+    JSON.stringify({
+      sender: "server",
+      type: "gameCreated",
+      gameId: game.id,
+    })
+  );
+};
+
+// Fonction permettant de rejoindre une partie
+const handleJoinGame = (client: CustomWebSocket, message: ClientMessage) => {
+  const game = state.games.find((g) => g.id === message.game);
+  const player: PlayerWebSocket = { ...(client as PlayerWebSocket), score: 0, didBuzz: false };
+
+  if (game && game.state === "waiting" && !game.players.find((p) => p.id === player.id)) {
+    game.players.push(player);
+    game.state = "playing";
+
+    game.players.forEach((p) => {
+      p.send(
+        JSON.stringify({
+          sender: "server",
+          type: "gameStarted",
+          gameId: game.id,
+          players: game.players.map((p) => p.username),
+        })
+      );
+    });
+  }
 };
 
 // Utilise message handler pour rediriger vers la fonction approprié
