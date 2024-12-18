@@ -22,7 +22,6 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
 Object.defineProperty(exports, "__esModule", { value: true });
 var ws_1 = require("ws");
 var node_crypto_1 = require("node:crypto");
-require("./words.json");
 var SketchGameManager_1 = require("./models/SketchGameManager");
 // Initialisation du serveur et écoute sur tous les ports
 var wss = new ws_1.WebSocketServer({ port: 8081, host: "0.0.0.0" });
@@ -32,46 +31,68 @@ var state = {
     typingTimeouts: {}, // Utilise setTimeout pour gérer le 'User is writting' sur le front
     writting: [], // Liste des utilisateurs en train d'écrire
     sketchGames: [], // Liste des parties draw en cours
-    quizzes: [] // Liste des parties de quiz en cours
+    quizzes: [], // Liste des parties de quiz en cours
 };
 //  Gére la redirection vers les fonctions pour simplifier le code
 var messageHandlers = {
     connect: function (client, message) { return connectClient(client, message.username); },
-    message: function (client, message) { return handleMessage(client, message.value); },
-    writting: function (client, message) { return handleWritting(client, message.isWritting); },
-    createGame: function (client, message) { return handleCreateGame(client); },
-    joinGame: function (client, message) { return handleJoinGame(client, message); },
-    launchGame: function (client, message) { return handleLaunchGame(client, message); },
-    guess: function (client, message) { return handleGuess(client, message); }
+    // message: (client: CustomWebSocket, message: ClientMessage) => handleMessage(client, message),
+    writting: function (client, message) { return handleWritting(client, message); },
+    createSketchGame: function (client, message) { return handleCreateSketchGame(client); },
+    joinSketchGame: function (client, message) { return handleJoinSketchGame(client, message); },
+    getSketchGame: function (client, message) { return handleGetSketchGame(client, message); },
+    launchSketchGame: function (client, message) { return handleLaunchSketchGame(client, message); },
+    guess: function (client, message) { return handleGuess(client, message); },
+    canvas: function (client, message) { return handleCanvas(client, message); },
+    hello: function (client, message) { return console.log('Hello', client.id); }
+};
+var handleCanvas = function (client, message) {
+    var game = state.sketchGames.find(function (g) { return g.id === message.game; });
+    if (!game)
+        return;
+    game.canvas = message.image;
+    game.sendCanvas();
 };
 // Fonction permettant d'envoyer un message à une liste d'utilisateur
 var broadcast = function (clients, message) {
-    clients.forEach(function (client) { return client.send(JSON.stringify(message)); });
+    console.log('Broadcasting to clients:', clients.map(function (c) { return c.id; })); // Log pour chaque client
+    clients.forEach(function (client) {
+        client.send(JSON.stringify(message));
+    });
 };
 // Fonction permettant de créer une partie
-var handleCreateGame = function (client) {
+var handleCreateSketchGame = function (client) {
     var gameId = Math.random().toString(36).substring(2, 10);
     while (gameId in state.sketchGames) {
         gameId = Math.random().toString(36).substring(2, 10);
     }
-    var player = __assign(__assign({}, client), { score: 0, didBuzz: false });
+    var player = Object.assign(client, { score: 0 });
     var game = new SketchGameManager_1.SketchGameManager(gameId, player);
     state.sketchGames.push(game);
-    client.send(JSON.stringify({
-        sender: "server",
-        type: "gameCreated",
-        gameId: game.id,
-    }));
+    client.send(JSON.stringify(__assign(__assign({ sender: "server", type: "gameCreated" }, game.getGameInfo()), { gameId: game.id })));
 };
 // Fonction permettant de rejoindre une partie
-var handleJoinGame = function (client, message) {
+var handleJoinSketchGame = function (client, message) {
     var game = state.sketchGames.find(function (g) { return g.id === message.game; });
-    var player = __assign(__assign({}, client), { score: 0, didBuzz: false });
+    var player = Object.assign(client, { score: 0 });
     if (game && game.state === "waiting" && !game.players.find(function (p) { return p.id === player.id; })) {
-        game.players.push(player);
+        game.addPlayer(player);
     }
 };
-var handleLaunchGame = function (client, message) {
+var handleGetSketchGame = function (client, message) {
+    var game = state.sketchGames.find(function (g) { return g.id === message.game; });
+    if (game) {
+        client.send(JSON.stringify(__assign({ sender: "server", type: "getSketchGame" }, game.getGameInfo())));
+    }
+    else {
+        client.send(JSON.stringify({
+            sender: "server",
+            type: "getSketchGame",
+            state: "notFound",
+        }));
+    }
+};
+var handleLaunchSketchGame = function (client, message) {
     var game = state.sketchGames.find(function (g) { return g.id === message.game; });
     if (game && game.owner.id === client.id) {
         game.startGame();
@@ -86,12 +107,12 @@ var handleGuess = function (client, message) {
     if (!player) {
         return;
     }
-    if (game.state === "playing") {
-        game.guessWord(player, message.value);
-    }
+    console.log('Guess:', message.value);
+    game.guessWord(player, message);
 };
 // Utilise message handler pour rediriger vers la fonction approprié
 var handleIncomingMessage = function (client, data) {
+    console.log('client: ' + client);
     try {
         var message = JSON.parse(data);
         if (messageHandlers[message.type]) {
@@ -110,7 +131,7 @@ var connectClient = function (client, username) {
     client.id = (0, node_crypto_1.randomUUID)();
     client.username = username;
     state.clients.push(client);
-    console.log('Client connected: ', client.username);
+    console.log('Client connected: ', client.username, client.id);
     var welcomeMessage = {
         sender: "server",
         username: username,
@@ -123,12 +144,17 @@ var connectClient = function (client, username) {
         username: "server",
         value: "Welcome to the chat",
         type: "login",
-        users: __spreadArray(__spreadArray([], state.clients.map(function (c) { return c.username; }), true), [username], false).filter(function (u, i, a) { return a.indexOf(u) === i; })
+        users: __spreadArray(__spreadArray([], state.clients.map(function (c) { return c.username; }), true), [username], false).filter(function (u, i, a) { return a.indexOf(u) === i; }),
+        image: state.canvas
     }));
+    console.log('Clients:', state.clients.map(function (c) { return c.username; }));
 };
 // Déconnecte un utilisateur en le retirant du state
 var disconnectClient = function (client) {
-    state.clients = state.clients.filter(function (c) { return c.id !== client.id; });
+    console.log('Client disconnected: ', client.username);
+    state.sketchGames.forEach(function (g) {
+        g.removePlayer(client.id);
+    });
     var messageToSend = {
         sender: "server",
         username: client.username,
@@ -137,59 +163,51 @@ var disconnectClient = function (client) {
         users: state.clients.map(function (c) { return c.username; })
     };
     broadcast(state.clients, messageToSend);
+    state.clients = state.clients.filter(function (c) { return c.id !== client.id; });
 };
-// Partage un message reçu à tous les utilisateurs
-var handleMessage = function (client, message) {
-    console.log('Message received: ', message);
-    state.writting = state.writting.filter(function (w) { return w.id !== client.id; });
-    broadcast(state.clients.filter(function (c) { return c.id !== client.id; }), {
-        sender: "user",
-        username: client.username,
-        value: message,
-        type: "message",
-        users: state.writting
-    });
-};
+// // Partage un message reçu à tous les utilisateurs
+// const handleMessage = (client: CustomWebSocket, message: ClientMessage) => {
+//     console.log('Message received: ', message);
+//     const game = state.sketchGames.find((g) => g.id === message.game);
+//     if (!game) {
+//       return
+//     }
+//     const player = game.players.find((p) => p.id === client.id );
+//     if (player) {
+//       game.guessWord(player, message);
+//     }
+// }
 // Permet d'envoyer qui écrit parmis les utilisateurs
-var handleWritting = function (client, value) {
-    if (value) {
-        if (!state.typingTimeouts[client.id]) {
-            state.writting.push(client);
-        }
-        clearTimeout(state.typingTimeouts[client.id]);
-        state.typingTimeouts[client.id] = setTimeout(function () {
-            state.writting = state.writting.filter(function (c) { return c.id !== client.id; });
-            delete state.typingTimeouts[client.id];
-            broadcast(state.clients, {
-                sender: "user",
-                username: client.username,
-                users: state.writting.map(function (c) { return c.username; }),
-                type: "writting",
-            });
-        }, 5000);
+var handleWritting = function (client, message) {
+    var game = state.sketchGames.find(function (g) { return g.id === message.game; });
+    if (!game)
+        return;
+    var player = game.players.find(function (p) { return p.id === client.id; });
+    if (!player)
+        return;
+    if (!game.typingTimeouts[player.id]) {
+        game.writtingUsers.push(player);
     }
-    else {
-        if (state.typingTimeouts[client.id]) {
-            clearTimeout(state.typingTimeouts[client.id]);
-            delete state.typingTimeouts[client.id];
-            state.writting = state.writting.filter(function (c) { return c.id !== client.id; });
-            broadcast(state.clients, {
-                sender: "user",
-                username: client.username,
-                users: state.writting.map(function (c) { return c.username; }),
-                type: "writting",
-            });
-        }
-    }
-    broadcast(state.clients, {
+    console.log(client.username + ' is writting');
+    clearTimeout(game.typingTimeouts[player.id]);
+    game.typingTimeouts[client.id] = setTimeout(function () {
+        game.writtingUsers = game.writtingUsers.filter(function (c) { return c.id !== player.id; });
+        delete game.typingTimeouts[player.id];
+        game.broadcastGameEvent('writting', {
+            sender: "user",
+            username: client.username,
+            writtingUsers: state.writting.map(function (c) { return c.username; }),
+        });
+    }, 5000);
+    game.broadcastGameEvent('writting', {
         sender: "user",
         username: client.username,
-        users: state.writting.map(function (c) { return c.username; }),
-        type: "writting",
+        writtingUsers: game.writtingUsers.map(function (c) { return c.username; }),
     });
 };
 wss.on("connection", function (socket) {
     socket.on("close", function () {
+        console.log('closing');
         disconnectClient(socket);
     });
     socket.on("message", function (data) {

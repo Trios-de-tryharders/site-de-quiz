@@ -1,0 +1,163 @@
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 10px;
+  background-color: #f9f9f9;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.message {
+  margin: 5px 0;
+  padding: 8px;
+  border-radius: 5px;
+  max-width: 80%; /* Limite la largeur du message */
+  word-wrap: break-word; /* Casse les longs mots */
+
+  &.self {
+    background-color: #c8e6c9; /* Vert clair */
+    color: #1b5e20;
+    margin-left: auto; /* Alignement à droite */
+    text-align: right;
+  }
+
+  &.user {
+    background-color: #ffecb3; /* Jaune clair */
+    color: #795548;
+    margin-right: auto; /* Alignement à gauche */
+    text-align: left;
+    .username {
+    &:hover {
+      background-color: lighten(#ffecb3, 10%);
+      cursor: pointer;
+    }
+  }
+  }
+
+  &.server {
+    background-color: #e1f5fe; /* Bleu clair */
+    width: 100%;
+    max-width: 100%;
+    color: #0288d1;
+    text-align: center;
+    font-style: italic;
+  }
+
+  &.error {
+    background-color: #e6534c; /* Vert clair */
+    width: 100%;
+    max-width: 100%;
+    color: #070707;
+    text-align: center;
+    font-style: italic;
+  }
+}
+
+.chat-input {
+  display: flex;
+  gap: 10px;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 5px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.chat-input button {
+  padding: 5px 10px;
+  border: none;
+  background-color: #0288d1;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.chat-input button:hover {
+  background-color: #0277bd;
+}
+
+
+.chat-header {
+  background-color: #0288d1;
+  color: white;
+  padding: 10px;
+  border-radius: 4px 4px 0 0;
+  text-align: center;
+}
+.chat-challenge, .chat-duel {
+  background-color: #fff3e0; /* Light orange */
+  border: 1px solid #ffb74d;
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.chat-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.chat-actions button {
+  padding: 5px 10px;
+  border: none;
+  background-color: #ffb74d;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.chat-actions button:hover {
+  background-color: #ffa726;
+}
+
+.username-wrapper {
+  position: relative;
+  display: inline-block;
+
+  .username {
+    cursor: pointer;
+    color: #3498db;
+    font-weight: bold;
+  }
+
+  .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: #ffffff;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    display: none; // Caché par défaut
+    z-index: 10;
+
+    button {
+      background: none;
+      border: none;
+      width: 100%;
+      padding: 5px 10px;
+      cursor: pointer;
+      text-align: left;
+
+      &:hover {
+        background: #f5f5f5;
+      }
+    }
+  }
+
+  &:hover .dropdown-menu {
+    display: block; // Affiche le menu lorsqu'on survole le pseudo
+  }
+}

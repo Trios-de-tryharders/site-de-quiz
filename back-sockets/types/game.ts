@@ -16,4 +16,7 @@ export interface SketchGames extends Game {
   roundDuration: number;
   winner?: PlayerWebSocket;
   roundWinners: PlayerWebSocket[];
+  canvas: any;
+  writtingUsers: PlayerWebSocket[];
+  typingTimeouts: {}
 }

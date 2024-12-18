@@ -4,4 +4,5 @@ export interface ClientMessage {
   isWritting: boolean;
   game: string;
   type: string;
+  image: string;
 }

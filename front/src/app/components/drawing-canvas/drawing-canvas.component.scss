@@ -1,0 +1,11 @@
+.canvas-container {
+  margin-top: 20px;
+  border: 2px solid #000;
+  display: flex;
+  justify-content: center;
+}
+
+.drawing-canvas {
+  background-color: #f9f9f9;
+  cursor: crosshair;
+}

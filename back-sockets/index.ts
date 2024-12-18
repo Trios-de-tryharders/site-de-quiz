@@ -1,6 +1,5 @@
 import { WebSocketServer } from "ws";
 import { randomUUID } from "node:crypto";
-import './words.json';
 import { CustomWebSocket, PlayerWebSocket } from "./types/websocket";
 import { ClientMessage } from "./types/messages";
 import { Game, SketchGames } from "./types/game";
@@ -10,33 +9,49 @@ import { SketchGameManager } from "./models/SketchGameManager";
 const wss = new WebSocketServer({ port: 8081, host: "0.0.0.0" });
 
 // Conserve les clients connectés et autre
-const state: {clients: CustomWebSocket[], typingTimeouts: {}, writting: CustomWebSocket[], sketchGames: SketchGameManager[], quizzes: Game[] }  = {
+const state: {clients: CustomWebSocket[], typingTimeouts: {}, writting: CustomWebSocket[], sketchGames: SketchGameManager[], quizzes: Game[]}  = {
     clients: [],
     typingTimeouts: {}, // Utilise setTimeout pour gérer le 'User is writting' sur le front
     writting: [], // Liste des utilisateurs en train d'écrire
     sketchGames: [], // Liste des parties draw en cours
-    quizzes: [] // Liste des parties de quiz en cours
+    quizzes: [], // Liste des parties de quiz en cours
 };
 
 
 //  Gére la redirection vers les fonctions pour simplifier le code
 const messageHandlers = {
   connect: (client: CustomWebSocket, message: ClientMessage) => connectClient(client, message.username),
-  message: (client: CustomWebSocket, message: ClientMessage) => handleMessage(client, message.value),
-  writting: (client: CustomWebSocket, message: ClientMessage) => handleWritting(client, message.isWritting),
-  createGame: (client: CustomWebSocket, message: ClientMessage) => handleCreateGame(client),
-  joinGame: (client: CustomWebSocket, message: ClientMessage) => handleJoinGame(client, message),
-  launchGame: (client: CustomWebSocket, message: ClientMessage) => handleLaunchGame(client, message),
-  guess: (client: CustomWebSocket, message: ClientMessage) => handleGuess(client, message)
+  // message: (client: CustomWebSocket, message: ClientMessage) => handleMessage(client, message),
+  writting: (client: CustomWebSocket, message: ClientMessage) => handleWritting(client, message),
+  createSketchGame: (client: CustomWebSocket, message: ClientMessage) => handleCreateSketchGame(client),
+  joinSketchGame: (client: CustomWebSocket, message: ClientMessage) => handleJoinSketchGame(client, message),
+  getSketchGame: (client: CustomWebSocket, message: ClientMessage) => handleGetSketchGame(client, message),
+  launchSketchGame: (client: CustomWebSocket, message: ClientMessage) => handleLaunchSketchGame(client, message),
+  guess: (client: CustomWebSocket, message: ClientMessage) => handleGuess(client, message),
+  canvas: (client: CustomWebSocket, message: ClientMessage) => handleCanvas(client, message),
+  hello: (client: CustomWebSocket, message: ClientMessage) => console.log('Hello', client.id)
 };
+
+const handleCanvas = (client: CustomWebSocket, message: ClientMessage) => {
+  const game = state.sketchGames.find((g) => g.id === message.game)
+
+  if (!game) return;
+
+  game.canvas = message.image;
+
+  game.sendCanvas();
+}
 
 // Fonction permettant d'envoyer un message à une liste d'utilisateur
 const broadcast = (clients: CustomWebSocket[], message) => {
-  clients.forEach((client) => client.send(JSON.stringify(message)));
+  console.log('Broadcasting to clients:', clients.map((c) => c.id)); // Log pour chaque client
+  clients.forEach((client) => {
+    client.send(JSON.stringify(message));
+  });
 };
 
 // Fonction permettant de créer une partie
-const handleCreateGame = (client: CustomWebSocket) => {
+const handleCreateSketchGame = (client: CustomWebSocket) => {
   
   let gameId = Math.random().toString(36).substring(2, 10)
 
@@ -44,7 +59,7 @@ const handleCreateGame = (client: CustomWebSocket) => {
     gameId = Math.random().toString(36).substring(2, 10);
   }
 
-  const player: PlayerWebSocket = { ...(client as PlayerWebSocket), score: 0, didBuzz: false };
+  const player: PlayerWebSocket = Object.assign(client, { score: 0 });
 
   const game = new SketchGameManager(gameId, player);
 
@@ -54,22 +69,46 @@ const handleCreateGame = (client: CustomWebSocket) => {
     JSON.stringify({
       sender: "server",
       type: "gameCreated",
+      ...game.getGameInfo(),
       gameId: game.id,
     })
   );
+
 };
 
 // Fonction permettant de rejoindre une partie
-const handleJoinGame = (client: CustomWebSocket, message: ClientMessage) => {
+const handleJoinSketchGame = (client: CustomWebSocket, message: ClientMessage) => {
   const game = state.sketchGames.find((g) => g.id === message.game);
-  const player: PlayerWebSocket = { ...(client as PlayerWebSocket), score: 0, didBuzz: false };
+  const player: PlayerWebSocket = Object.assign(client, { score: 0 });
 
   if (game && game.state === "waiting" && !game.players.find((p) => p.id === player.id)) {
-    game.players.push(player);
+    game.addPlayer(player);
   }
 };
 
-const handleLaunchGame = (client: CustomWebSocket, message: ClientMessage) => {
+const handleGetSketchGame = (client: CustomWebSocket, message: ClientMessage) => {
+  const game = state.sketchGames.find((g) => g.id === message.game);
+
+  if (game) {
+    client.send(
+      JSON.stringify({
+        sender: "server",
+        type: "getSketchGame",
+        ...game.getGameInfo(),
+      })
+    );
+  } else {
+    client.send(
+      JSON.stringify({
+        sender: "server",
+        type: "getSketchGame",
+        state: "notFound",
+      })
+    );
+  }
+};
+
+const handleLaunchSketchGame = (client: CustomWebSocket, message: ClientMessage) => {
   const game = state.sketchGames.find((g) => g.id === message.game);
 
   if (game && game.owner.id === client.id) {
@@ -90,13 +129,15 @@ const handleGuess = (client: CustomWebSocket, message: ClientMessage) => {
     return;
   }
 
-  if (game.state === "playing") {
-    game.guessWord(player, message.value);
-  }
+  console.log('Guess:', message.value);
+
+  game.guessWord(player, message);
+  
 };
 
 // Utilise message handler pour rediriger vers la fonction approprié
 const handleIncomingMessage = (client: CustomWebSocket, data: any) => {
+  console.log('client: ' + client)
   try {
     const message: ClientMessage = JSON.parse(data);
     if (messageHandlers[message.type]) {
@@ -115,8 +156,8 @@ const connectClient = (client: CustomWebSocket, username: string) => {
     client.id = randomUUID();
     client.username = username;
     state.clients.push(client);
-    console.log('Client connected: ', client.username);
-
+    console.log('Client connected: ', client.username, client.id);
+    
     const welcomeMessage = {
       sender: "server",
       username: username,
@@ -128,16 +169,20 @@ const connectClient = (client: CustomWebSocket, username: string) => {
 
     client.send(JSON.stringify({
         sender: "server",
-        username: "server",
         value: "Welcome to the chat",
         type: "login",
-        users: [...state.clients.map((c: CustomWebSocket) => c.username), username].filter((u, i, a) => a.indexOf(u) === i)
+        users: [...state.clients.map((c: CustomWebSocket) => c.username), username].filter((u, i, a) => a.indexOf(u) === i),
     }));
+
+    console.log('Clients:', state.clients.map((c: CustomWebSocket) => c.username));
 }
 
 // Déconnecte un utilisateur en le retirant du state
 const disconnectClient = (client: CustomWebSocket) => {
-    state.clients = state.clients.filter((c: CustomWebSocket) => c.id !== client.id);
+    console.log('Client disconnected: ', client.username);
+    state.sketchGames.forEach((g) => {
+      g.removePlayer(client.id);
+    });
 
     const messageToSend = {
       sender: "server",
@@ -148,68 +193,65 @@ const disconnectClient = (client: CustomWebSocket) => {
     };
 
     broadcast(state.clients, messageToSend)
+
+    state.clients = state.clients.filter((c: CustomWebSocket) => c.id !== client.id);    
 };
 
-// Partage un message reçu à tous les utilisateurs
-const handleMessage = (client: CustomWebSocket, message: string) => {
-    console.log('Message received: ', message);
+// // Partage un message reçu à tous les utilisateurs
+// const handleMessage = (client: CustomWebSocket, message: ClientMessage) => {
+//     console.log('Message received: ', message);
 
-    state.writting = state.writting.filter((w: CustomWebSocket) => w.id !== client.id);
+//     const game = state.sketchGames.find((g) => g.id === message.game);
 
-    broadcast(state.clients.filter((c: CustomWebSocket) => c.id !== client.id), 
-      {
-        sender: "user",
-        username: client.username,
-        value: message,
-        type: "message",
-        users: state.writting
-      });
-}
+//     if (!game) {
+//       return
+//     }
+
+//     const player = game.players.find((p) => p.id === client.id );
+
+//     if (player) {
+//       game.guessWord(player, message);
+//     }
+// }
 
 // Permet d'envoyer qui écrit parmis les utilisateurs
-const handleWritting = (client: CustomWebSocket, value: boolean) => {
-  if (value) {
-    if (!state.typingTimeouts[client.id]) {
-      state.writting.push(client);
-    }
+const handleWritting = (client: CustomWebSocket, message: ClientMessage) => {
+  const game = state.sketchGames.find((g) => g.id === message.game )
+  if (!game) return;
 
-    clearTimeout(state.typingTimeouts[client.id]);
+  const player = game.players.find((p) => p.id === client.id)
 
-    state.typingTimeouts[client.id] = setTimeout(() => {
-      state.writting = state.writting.filter((c) => c.id !== client.id);
-      delete state.typingTimeouts[client.id];
-      broadcast(state.clients, {
-        sender: "user",
-        username: client.username,
-        users: state.writting.map((c) => c.username),
-        type: "writting",
-      });
-    }, 5000);
-  } else {
-    if (state.typingTimeouts[client.id]) {
-      clearTimeout(state.typingTimeouts[client.id]);
-      delete state.typingTimeouts[client.id];
-      state.writting = state.writting.filter((c) => c.id !== client.id);
-      broadcast(state.clients, {
-        sender: "user",
-        username: client.username,
-        users: state.writting.map((c) => c.username),
-        type: "writting",
-      });
-    }
+  if (!player) return;
+
+  if (!game.typingTimeouts[player.id]) {
+    game.writtingUsers.push(player);
   }
 
-  broadcast(state.clients, {
+  console.log(client.username + ' is writting')
+
+  clearTimeout(game.typingTimeouts[player.id]);
+
+  game.typingTimeouts[client.id] = setTimeout(() => {
+    game.writtingUsers = game.writtingUsers.filter((c) => c.id !== player.id);
+    delete game.typingTimeouts[player.id];
+    game.broadcastGameEvent('writting', {
+      sender: "user",
+      username: client.username,
+      writtingUsers: state.writting.map((c) => c.username),
+    });
+  }, 5000);
+
+  game.broadcastGameEvent('writting', {
     sender: "user",
     username: client.username,
-    users: state.writting.map((c) => c.username),
-    type: "writting",
+    writtingUsers: game.writtingUsers.map((c) => c.username),
   });
 };
 
 
 wss.on("connection", (socket: CustomWebSocket) => {
   socket.on("close", () => {
+    console.log('closing')
     disconnectClient(socket);
   });
 

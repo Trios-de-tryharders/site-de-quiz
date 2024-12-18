@@ -1,0 +1,45 @@
+<div class="chat-container">
+  <!-- Section de connexion -->
+  @if (!connected) {
+    <div class="login-container">
+      <h2 class="login-title">Welcome to the Chat!</h2>
+      @if (error) {
+        <p class="login-error">{{ error }}</p>
+      }
+      <input
+        type="text"
+        [(ngModel)]="username"
+        placeholder="Enter your username"
+        class="login-input"
+        (keydown.enter)="connectToGame()"
+      />
+      <input
+        type="text"
+        [(ngModel)]="gameId"
+        placeholder="Enter the game ID"
+        class="login-input"
+        (keydown.enter)="connectToGame()"
+      />
+      <div class="login-buttons w-full">
+        <button (click)="connectToGame()" class="login-button">
+            Connect to game
+        </button>
+        <button (click)="createGame()" class="login-button">
+            Create game
+        </button>
+      </div>
+    </div>
+  }
+</div>
+
+  <!-- Section de chat
+  @if (connected) {
+    <div class="chat-main">
+      <div class="chat-box">
+        <app-chat
+          [webSocket]="wsStore.getWebSocket()"
+          [username]="username"
+        ></app-chat>
+      </div>
+    </div>
+  } -->

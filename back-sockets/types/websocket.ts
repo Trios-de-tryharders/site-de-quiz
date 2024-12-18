@@ -4,8 +4,9 @@ export interface CustomWebSocket extends WebSocket {
   username: string;
 }
 
-export interface PlayerWebSocket extends CustomWebSocket {
+export interface PlayerWebSocket extends WebSocket {
+  on(event: string, listener: (data: any) => void): this;
+  id: string;
+  username: string;
   score: number;
-  didBuzz: boolean;
-  state: string;
 }
