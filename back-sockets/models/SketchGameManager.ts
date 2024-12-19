@@ -156,6 +156,17 @@ export class SketchGameManager implements SketchGames {
             }, clients);
     }
 
+    resetParameters() {
+        this.round = 0;
+        this.roundWinners = [];
+        this.words = [];
+        this.drawOrder = [];
+        this.word = '';
+        this.hiddenWord = '';
+        this.canvas = '';
+        this.time = this.roundDuration;
+    }
+
     startGame() {
         if (this.state === 'playing' || this.state === 'chooseWord') {
             return;
@@ -163,12 +174,11 @@ export class SketchGameManager implements SketchGames {
 
         this.state = 'chooseWord';
 
-        this.round = 0;
-        this.roundWinners = [];
-        this.words = [];
-        this.drawOrder = [];
-        this.hiddenWord = '';
-        this.canvas = '';
+        this.resetParameters();
+
+        for (let i = 0; i < this.players.length; i++) {
+            this.players[i].score = 0;
+        }
 
         this.sendCanvas();
 
@@ -275,8 +285,14 @@ export class SketchGameManager implements SketchGames {
         this.word = '';
         this.words = this.getRandomWords(3);
         this.hiddenWord = '';
+        this.roundWinners = [];
+        this.time = this.roundDuration;
     
-        if (index === this.drawOrder.length) {
+        this.canvas = '';
+
+        this.sendCanvas();
+        
+        if (index === this.drawOrder.length - 1) {
             this.nextRound();
         } else {
             this.drawer = this.drawOrder[index + 1];
@@ -305,6 +321,7 @@ export class SketchGameManager implements SketchGames {
 
     nextRound() {
         this.round++;
+        console.log('Next round', this.round)
 
         if (this.round >= this.maxRound) {
             this.endGame();
@@ -318,6 +335,8 @@ export class SketchGameManager implements SketchGames {
 
     endGame() {
         this.state = 'ended';
+
+        this.resetParameters();
 
         this.players.forEach((p) => {
             p.send(

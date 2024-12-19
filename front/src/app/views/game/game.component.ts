@@ -50,6 +50,7 @@ export class GameComponent {
       wordChosen: () => this.handleWordChosen(message),
       timerUpdate: () => this.handleTimerUpdate(message),
       nextDrawer: () => this.handleUpdateGame(message, false),
+      gameEnded: () => this.handleUpdateGame(message, false),
     };
 
     if (handlers[message.type]) {

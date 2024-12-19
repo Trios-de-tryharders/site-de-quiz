@@ -247,7 +247,9 @@ var SketchGameManager = /** @class */ (function () {
         this.word = '';
         this.words = this.getRandomWords(3);
         this.hiddenWord = '';
-        if (index === this.drawOrder.length) {
+        this.roundWinners = [];
+        this.time = this.roundDuration;
+        if (index === this.drawOrder.length - 1) {
             this.nextRound();
         }
         else {
@@ -266,6 +268,7 @@ var SketchGameManager = /** @class */ (function () {
     };
     SketchGameManager.prototype.nextRound = function () {
         this.round++;
+        console.log('Next round', this.round);
         if (this.round >= this.maxRound) {
             this.endGame();
             return;
