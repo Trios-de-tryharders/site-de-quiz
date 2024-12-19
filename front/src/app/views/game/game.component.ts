@@ -45,7 +45,7 @@ export class GameComponent {
       getSketchGame: () => this.handleGetSketchGame(message),
       playerJoined: () => this.handleUpdateGame(message),
       playerLeft: () => this.handleUpdateGame(message),
-      startDrawing: () => this.handleUpdateGame(message),
+      startDrawing: () => this.handleUpdateGame(message, false),
       wordChosen: () => this.handleWordChosen(message),
       timerUpdate: () => this.handleTimerUpdate(message),
     };
@@ -100,7 +100,7 @@ export class GameComponent {
     
   }
 
-  handleUpdateGame(message: any) {
+  handleUpdateGame(message: any, forceCanDraw?: boolean) {
     if (message.state === 'waiting') {
       this.players = message.players;
       this.state = message.state;
@@ -114,8 +114,12 @@ export class GameComponent {
       this.roundWinners = message.roundWinners;
       this.round = message.round;
       this.maxRound = message.maxRound;
-      if (message.state === 'chooseWord' && this.drawer === this.username) {
-        this.words = message.words;
+      if (message.state === 'chooseWord') {
+        if ( this.drawer === this.username) {
+          this.words = message.words;
+        }
+        this.canDraw = false;
+        console.log('Choose Word')
       }
     } else if (message.state === 'ended') {
       this.players = message.players;
@@ -124,14 +128,19 @@ export class GameComponent {
       this.round = message.round;
       this.players = message.players;
     }
+
+    if (forceCanDraw) {
+      this.canDraw = forceCanDraw;
+    }
   }
 
   handleWordChosen(message: any) {
     if (message.username === this.username) {
+      this.canDraw = true;
       this.words = [];
     } else {
       this.word = message.word;
-      this.canDraw = true;
+      this.canDraw = false;
     }
     this.state = message.state;
   }

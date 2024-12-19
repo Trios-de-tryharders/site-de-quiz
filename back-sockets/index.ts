@@ -195,6 +195,7 @@ const disconnectClient = (client: CustomWebSocket) => {
     console.log('Client disconnected: ', client.username);
     state.sketchGames.forEach((g) => {
       g.removePlayer(client.id);
+      g.players.length === 0 && state.sketchGames.splice(state.sketchGames.indexOf(g), 1);
     });
 
     const messageToSend = {

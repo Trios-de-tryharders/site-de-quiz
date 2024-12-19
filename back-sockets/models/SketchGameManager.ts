@@ -35,9 +35,9 @@ export class SketchGameManager implements SketchGames {
         this.time = roundDuration;
     }
 
-    broadcast(message: any) {
+    broadcast(message: any, clients: PlayerWebSocket[] = this.players) {
         console.log('Broadcasting to players')
-        this.players.forEach((p: PlayerWebSocket) => {
+        clients.forEach((p: PlayerWebSocket) => {
             if (typeof p.send === 'function') {
                 p.send(JSON.stringify(message));
                 console.log('To user: ', p.username)
@@ -48,14 +48,14 @@ export class SketchGameManager implements SketchGames {
         });
     }
 
-    broadcastGameEvent(eventType: string, additionalData: any = {}) {
+    broadcastGameEvent(eventType: string, additionalData: any = {}, clients: PlayerWebSocket[] = this.players) {
         const message = {
             sender: 'server',
             type: eventType,
             ...this.getGameInfo(),
             ...additionalData,
         };
-        this.broadcast(message);
+        this.broadcast(message, clients);
     }
 
     sendCanvas() {
@@ -105,29 +105,42 @@ export class SketchGameManager implements SketchGames {
             
             this.players.push(player);
             this.drawOrder.push(player);
-            this.broadcast({
-                ...this.getGameInfo(),
-                type: 'playerJoined',
-                username: player.username,
-            });
+             this.broadcastGameEvent('playerJoined',
+                { username: player.username }
+            );
         }
     }
 
     removePlayer(playerId: string) {
-        this.players = this.players.filter((p) => p.id !== playerId);
+        const player = this.players.find((p) => p.id === playerId);
 
-        if (this.state === 'playing') {
-            this.drawOrder = this.drawOrder.filter((p) => p.id !== playerId);
-            this.broadcast({
-                    ...this.getGameInfo(),
-                    type: 'gameUpdated',
-                });
+        if (!player) {
+            return;
         }
+
+        this.players = this.players.filter((p) => p.id !== player.id);
+        
+        if (this.state === 'playing' || this.state === 'chooseWord') {
+            this.drawOrder = this.drawOrder.filter((p) => p.id !== player.id);
+            if (playerId === this.drawer?.id) {
+                this.nextDrawer();
+            }
+        }
+
+        if (this.players.length === 0) {
+            return;
+        }
+        
+        this.owner = this.players[0];
+
+        this.broadcastGameEvent('playerLeft',
+            { username: player.username }
+        );
     }
 
-    addMessage(player: PlayerWebSocket, message: ClientMessage) {
-        console.log('add message')
-        if (this.state !== 'playing') {
+    addMessage(player: PlayerWebSocket, message: ClientMessage, clients: PlayerWebSocket[] = this.players) {
+        console.log('add message: ', message)
+        console.log('clients: ', clients.map((p) => p.username))
             this.broadcast({
                 sender: 'user',
                 username: player.username,
@@ -135,17 +148,8 @@ export class SketchGameManager implements SketchGames {
                 value: message.value,
                 players: this.players.map((p) => p.username),
                 writtingUsers: this.writtingUsers
-            });
-        }
-        if (this.state === 'playing' && !this.isPlayerDrawer(player) && !this.roundWinners.find((p) => p.id === player.id)) {
-            this.broadcast({
-                sender: player.username,
-                type: 'message',
-                value: message,
-                players: this.players.map((p) => p.username),
-                writtingUsers: this.writtingUsers
-            });
-        }
+            }, clients);
+        
     }
 
     startGame() {
@@ -228,7 +232,7 @@ export class SketchGameManager implements SketchGames {
         ) {
             player.score += 100 * (1 / this.roundWinners.length);
             this.roundWinners.push(player);
-
+            this.broadcastGameEvent('guess', { isRight: true, value: `${player.username} has found the word !` })
             if (this.roundWinners.length === this.players.length - 1) {
                 this.stopTimer();
                 this.nextDrawer();
@@ -239,9 +243,18 @@ export class SketchGameManager implements SketchGames {
                     sender: 'server',
                     type: 'guess',
                     value: 'You are getting close to the word',
+                    guess: word.value,
+                    isRight: false
                 })
             )
-        } else {
+        } else if (this.roundWinners.find((p) => p.id === player.id) || this.isPlayerDrawer(player)) {
+            if (this.drawer){
+                this.addMessage(player, word, [...this.roundWinners, this.drawer])
+            } else {
+                this.addMessage(player, word, this.roundWinners)
+            }
+        } 
+        else {
             this.addMessage(player, word);
         }
     }

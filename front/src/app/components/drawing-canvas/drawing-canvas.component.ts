@@ -73,6 +73,7 @@ export class DrawingCanvasComponent implements AfterViewInit {
   }
 
   draw(event: MouseEvent) {
+    console.log(this.isDrawing, this.canDraw, this.isDrawer)
     if (!this.isDrawing || !this.canDraw) return;
     const { offsetX, offsetY } = event;
     this.ctx.lineTo(offsetX, offsetY);

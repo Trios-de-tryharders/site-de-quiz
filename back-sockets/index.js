@@ -163,6 +163,7 @@ var disconnectClient = function (client) {
     console.log('Client disconnected: ', client.username);
     state.sketchGames.forEach(function (g) {
         g.removePlayer(client.id);
+        g.players.length === 0 && state.sketchGames.splice(state.sketchGames.indexOf(g), 1);
     });
     var messageToSend = {
         sender: "server",

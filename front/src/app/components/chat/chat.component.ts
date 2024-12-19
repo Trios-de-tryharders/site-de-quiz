@@ -48,6 +48,10 @@ export class ChatComponent implements OnInit {
           this.players = message.players;
         } else if (message.type === 'guess') {
           this.addMessage(message);
+        } else if (message.type === 'playerJoined') {
+          this.addPlayer(message);
+        } else if (message.type === 'playerLeft') {
+          this.removePlayer(message);
         }
       } catch (e) {
         console.error('Invalid JSON format:', event.data);
@@ -73,6 +77,14 @@ export class ChatComponent implements OnInit {
     setTimeout(() => {
       this.chatMessages.nativeElement.scrollTop = this.chatMessages.nativeElement.scrollHeight;
     }, 10);
+  }
+  
+  addPlayer(message: any) {
+    this.messages.push({username: message.username, value: `${message.username} has joined the game`, sender: message.sender});
+  }
+
+  removePlayer(message: any) {
+    this.messages.push({username: message.username, value: `${message.username} has left the game`, sender: message.sender});
   }
 
   sendMessage(){

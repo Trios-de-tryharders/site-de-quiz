@@ -48,6 +48,8 @@ export class HomeComponent {
       this.error = 'Please enter a valid username';
       return;
     }
+    this.cookieService.set('username', this.username);
+
     this.wsStore.sendMessage({ type: 'connect', username: this.username });
 
     this.wsStore.sendMessage({ type: 'createSketchGame', username: this.username });

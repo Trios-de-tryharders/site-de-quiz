@@ -43,9 +43,10 @@ var SketchGameManager = /** @class */ (function () {
         this.roundDuration = roundDuration;
         this.time = roundDuration;
     }
-    SketchGameManager.prototype.broadcast = function (message) {
+    SketchGameManager.prototype.broadcast = function (message, clients) {
+        if (clients === void 0) { clients = this.players; }
         console.log('Broadcasting to players');
-        this.players.forEach(function (p) {
+        clients.forEach(function (p) {
             if (typeof p.send === 'function') {
                 p.send(JSON.stringify(message));
                 console.log('To user: ', p.username);
@@ -56,10 +57,11 @@ var SketchGameManager = /** @class */ (function () {
             }
         });
     };
-    SketchGameManager.prototype.broadcastGameEvent = function (eventType, additionalData) {
+    SketchGameManager.prototype.broadcastGameEvent = function (eventType, additionalData, clients) {
         if (additionalData === void 0) { additionalData = {}; }
+        if (clients === void 0) { clients = this.players; }
         var message = __assign(__assign({ sender: 'server', type: eventType }, this.getGameInfo()), additionalData);
-        this.broadcast(message);
+        this.broadcast(message, clients);
     };
     SketchGameManager.prototype.sendCanvas = function () {
         this.broadcastGameEvent('canvas');
@@ -108,37 +110,40 @@ var SketchGameManager = /** @class */ (function () {
         if (!this.players.find(function (p) { return p.id === player.id; })) {
             this.players.push(player);
             this.drawOrder.push(player);
-            this.broadcast(__assign(__assign({}, this.getGameInfo()), { type: 'playerJoined', username: player.username }));
+            this.broadcastGameEvent('playerJoined', { username: player.username });
         }
     };
     SketchGameManager.prototype.removePlayer = function (playerId) {
-        this.players = this.players.filter(function (p) { return p.id !== playerId; });
-        if (this.state === 'playing') {
-            this.drawOrder = this.drawOrder.filter(function (p) { return p.id !== playerId; });
-            this.broadcast(__assign(__assign({}, this.getGameInfo()), { type: 'gameUpdated' }));
+        var _a;
+        var player = this.players.find(function (p) { return p.id === playerId; });
+        if (!player) {
+            return;
         }
+        this.players = this.players.filter(function (p) { return p.id !== player.id; });
+        if (this.state === 'playing' || this.state === 'chooseWord') {
+            this.drawOrder = this.drawOrder.filter(function (p) { return p.id !== player.id; });
+            if (playerId === ((_a = this.drawer) === null || _a === void 0 ? void 0 : _a.id)) {
+                this.nextDrawer();
+            }
+        }
+        if (this.players.length === 0) {
+            return;
+        }
+        this.owner = this.players[0];
+        this.broadcastGameEvent('playerLeft', { username: player.username });
     };
-    SketchGameManager.prototype.addMessage = function (player, message) {
-        console.log('add message');
-        if (this.state !== 'playing') {
-            this.broadcast({
-                sender: 'user',
-                username: player.username,
-                type: 'message',
-                value: message.value,
-                players: this.players.map(function (p) { return p.username; }),
-                writtingUsers: this.writtingUsers
-            });
-        }
-        if (this.state === 'playing' && !this.isPlayerDrawer(player) && !this.roundWinners.find(function (p) { return p.id === player.id; })) {
-            this.broadcast({
-                sender: player.username,
-                type: 'message',
-                value: message,
-                players: this.players.map(function (p) { return p.username; }),
-                writtingUsers: this.writtingUsers
-            });
-        }
+    SketchGameManager.prototype.addMessage = function (player, message, clients) {
+        if (clients === void 0) { clients = this.players; }
+        console.log('add message: ', message);
+        console.log('clients: ', clients.map(function (p) { return p.username; }));
+        this.broadcast({
+            sender: 'user',
+            username: player.username,
+            type: 'message',
+            value: message.value,
+            players: this.players.map(function (p) { return p.username; }),
+            writtingUsers: this.writtingUsers
+        }, clients);
     };
     SketchGameManager.prototype.startGame = function () {
         var _this = this;
@@ -198,6 +203,7 @@ var SketchGameManager = /** @class */ (function () {
             && this.time > 0) {
             player.score += 100 * (1 / this.roundWinners.length);
             this.roundWinners.push(player);
+            this.broadcastGameEvent('guess', { isRight: true, value: "".concat(player.username, " has found the word !") });
             if (this.roundWinners.length === this.players.length - 1) {
                 this.stopTimer();
                 this.nextDrawer();
@@ -208,7 +214,17 @@ var SketchGameManager = /** @class */ (function () {
                 sender: 'server',
                 type: 'guess',
                 value: 'You are getting close to the word',
+                guess: word.value,
+                isRight: false
             }));
+        }
+        else if (this.roundWinners.find(function (p) { return p.id === player.id; }) || this.isPlayerDrawer(player)) {
+            if (this.drawer) {
+                this.addMessage(player, word, __spreadArray(__spreadArray([], this.roundWinners, true), [this.drawer], false));
+            }
+            else {
+                this.addMessage(player, word, this.roundWinners);
+            }
         }
         else {
             this.addMessage(player, word);
