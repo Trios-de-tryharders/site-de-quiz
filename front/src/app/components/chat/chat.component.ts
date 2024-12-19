@@ -40,10 +40,10 @@ export class ChatComponent implements OnInit {
       try {
         const message = JSON.parse(event.data);
         if (message.type === 'message') {
-          this.writtingUsers = message.writtingUsers;
+          this.writtingUsers = message.writtingUsers ?? this.writtingUsers;
           this.addMessage(message);
         } else if (message.type === 'writting') {
-          this.writtingUsers = message.writtingUsers;
+          this.writtingUsers = message.writtingUsers ?? this.writtingUsers;
         } else if (message.type === 'gameUpdated') {
           this.playersLength = message.players.length;
         } else if (message.type === 'guess') {
@@ -72,6 +72,10 @@ export class ChatComponent implements OnInit {
 
     if (this.writtingUsers.includes(message.username)) {
       this.writtingUsers = this.writtingUsers.filter(user => user !== message.username);
+    }
+
+    if (message.guess) {
+      this.messages.push({username: message.username, value: `Guess: ${message.guess}`, sender: 'self'});
     }
 
     setTimeout(() => {

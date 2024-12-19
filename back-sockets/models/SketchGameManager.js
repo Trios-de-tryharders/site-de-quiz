@@ -242,6 +242,7 @@ var SketchGameManager = /** @class */ (function () {
                 guess: word.value,
                 isRight: false
             }));
+            this.broadcastGameEvent('message', { value: word.value, sender: 'user', username: player.username }, this.drawer ? __spreadArray([this.drawer], this.roundWinners, true) : __spreadArray([], this.roundWinners, true));
         }
         else if (this.roundWinners.find(function (p) { return p.id === player.id; }) || this.isPlayerDrawer(player)) {
             if (this.drawer) {

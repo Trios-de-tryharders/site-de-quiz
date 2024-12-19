@@ -274,6 +274,7 @@ export class SketchGameManager implements SketchGames {
                     isRight: false
                 })
             )
+            this.broadcastGameEvent('message', { value: word.value, sender: 'user', username: player.username }, this.drawer ? [this.drawer, ...this.roundWinners] : [...this.roundWinners]);
         } else if (this.roundWinners.find((p) => p.id === player.id) || this.isPlayerDrawer(player)) {
             if (this.drawer){
                 this.addMessage(player, word, [...this.roundWinners, this.drawer])
