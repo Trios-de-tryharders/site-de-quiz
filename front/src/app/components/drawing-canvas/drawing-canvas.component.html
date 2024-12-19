@@ -1,7 +1,43 @@
+<div class="drawing-panel">
   <div class="canvas-container">
     <canvas
       #drawingCanvas
-      width="800"
-      height="400"
+      [attr.width]="800"
+      [attr.height]="600"
       class="drawing-canvas"
+      [class.disabled]="!canDraw"
     ></canvas>
+  </div>
+
+  @if (canDraw) {
+    <div class="drawing-controls">
+      <button class="control-button" (click)="resetCanvas()" title="Clear Canvas">
+        <span class="button-text">Clear [C]</span>
+      </button>
+      <button class="control-button" (click)="undo()" [disabled]="!canDraw" title="Undo Last Action">
+        <span class="button-text">Undo [U]</span>
+      </button>
+      
+      <!-- Sélecteur de couleur -->
+      <label>
+        <span>Pen Color:</span>
+        <input type="color" [(ngModel)]="penColor" (change)="changePenColor($event)" />
+      </label>
+
+      <!-- Sélecteur de taille du crayon -->
+      <label>
+        <span>Pen Size:</span>
+        <input type="range" min="1" max="10" [(ngModel)]="penSize" (change)="changePenSize()" />
+      </label>
+
+      <!-- Bouton pour remplir -->
+      <button class="control-button" (click)="fillCanvas()" title="Fill Shape">
+        <span class="button-text">Fill</span>
+      </button>
+
+      <button class="control-button" (click)="toggleFillMode()" title="Toggle Fill Mode">
+        <span class="button-text">Fill Mode: {{ fillMode ? 'On' : 'Off' }}</span>
+      </button>
+    </div>
+  }
+</div>

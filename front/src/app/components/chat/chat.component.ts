@@ -43,7 +43,7 @@ export class ChatComponent implements OnInit {
           this.writtingUsers = message.writtingUsers;
           this.addMessage(message);
         } else if (message.type === 'writting') {
-          this.writtingUsers = message.writtingUsers
+          this.writtingUsers = message.writtingUsers;
         } else if (message.type === 'gameUpdated') {
           this.players = message.players;
         } else if (message.type === 'guess') {

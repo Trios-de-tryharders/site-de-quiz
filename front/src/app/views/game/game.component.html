@@ -1,43 +1,117 @@
-@if (username) {
-    {{ state}}
-    <h1>Sketch Game</h1>
-    @if (state === 'waiting') {
-        <h2>Waiting for players...</h2>
-    } @else if (state === 'chooseWord' && drawer === username) {
-        @for (w of words; track w) {
-            <button (click)="chooseWord(w)" class="word-button">{{ w }}</button>
+<div class="game-container">
+  @if (username) {
+    <div class="game-content">
+      <header class="game-header">
+        <h1>Sketch Game</h1>
+        <div class="game-status">
+          <span class="status-badge">{{ state }}</span>
+          @if (time !== undefined) {
+            <span class="timer">Time: {{ time }}s</span>
+          }
+        </div>
+      </header>
+
+      @if (state === 'waiting') {
+        @if (players.length === 1) {
+            <div class="waiting-screen">
+                <h2>Waiting for players to join...</h2>
+            </div>
+        } @else {
+            <div class="waiting-screen">
+                <h2>Waiting for the host to start...</h2>
+                @if (this.username === owner) {
+                    <button class="primary-button" (click)="launchGame()">Start Game</button>
+
+                }
+            </div>
         }
-    } @else if (state === 'playing') {
-        <h2>Word: {{ word }}</h2>
-        <h3>Time left: {{ time }}</h3>
-        <h3>Drawer: {{ drawer }}</h3>
-        <h3>Players:</h3>
-        <ul>
-            @for (p of players; track p) {
-                <li>{{ p }}</li>
+      } 
+      
+      @if (state === 'chooseWord' && drawer === username) {
+        <div class="word-selection">
+          <h2>Choose a word to draw:</h2>
+          <div class="word-options">
+            @for (word of words; track word) {
+              <button (click)="chooseWord(word)" class="word-button">{{ word }}</button>
             }
-        </ul>
-    }
-    <app-drawing-canvas [gameId]="gameId" [canDraw]="canDraw"></app-drawing-canvas>
-    <button (click)="launchGame()">Launch Game</button>
-    <app-chat [gameId]="gameId" [players]="players"></app-chat>
-} @else {    
-    <div class="login-container">
-      <h2 class="login-title">Welcome to the Sketch Game!</h2>
-      @if (error) {
-        <p class="login-error">{{ error }}</p>
+          </div>
+        </div>
+      } 
+      
+      @if (state === 'playing') {
+        <div class="game-info">
+          <div class="current-word">
+            @if (drawer === username) {
+              <h2>Draw: {{ word }}</h2>
+            } @else {
+              <h2>Guess the word: {{ word }}</h2>
+            }
+          </div>
+          <div class="game-stats">
+            <div class="drawer-info">
+              <span class="label">Current Artist:</span>
+              <span class="value">{{ drawer }}</span>
+            </div>
+            <div class="round-info">
+              <span class="label">Round:</span>
+              <span class="value">{{ round }}/{{ maxRound }}</span>
+            </div>
+          </div>
+        </div>
       }
-      <input
-        type="text"
-        [(ngModel)]="inputUsername"
-        placeholder="Enter your username"
-        class="login-input"
-        (keydown.enter)="connectToGame()"
-      />
-      <div class="login-buttons w-full">
-        <button (click)="connectToGame()" class="login-button">
-            Connect to game
-        </button>
+
+      <div class="game-board">
+        <div class="canvas-container">
+          <app-drawing-canvas 
+            [gameId]="gameId" 
+            [canDraw]="canDraw">
+          </app-drawing-canvas>
+        </div>
+        
+        <div class="game-sidebar">
+          <div class="players-panel">
+            <h3>Players</h3>
+            <ul class="players-list">
+              @for (player of players; track player) {
+                <li [class.active]="player === drawer">
+                  <span class="player-name">{{ player }}</span>
+                  @if (roundWinners.includes(player)) {
+                    <span class="winner-badge">✓</span>
+                  }
+                </li>
+              }
+            </ul>
+          </div>
+          
+          <div class="chat-panel">
+            <app-chat 
+              [gameId]="gameId" 
+              [players]="players">
+            </app-chat>
+          </div>
+        </div>
       </div>
     </div>
-}
+  } @else {    
+    <div class="login-container">
+      <div class="login-box">
+        <h2 class="login-title">Welcome to Sketch Game!</h2>
+        @if (error) {
+          <p class="login-error">{{ error }}</p>
+        }
+        <div class="login-form">
+          <input
+            type="text"
+            [(ngModel)]="inputUsername"
+            placeholder="Enter your username"
+            class="login-input"
+            (keydown.enter)="connectToGame()"
+          />
+          <button (click)="connectToGame()" class="login-button">
+            Join Game
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

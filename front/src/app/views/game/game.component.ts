@@ -16,6 +16,7 @@ export class GameComponent {
   error = '';
   inputUsername = '';
 
+  owner: string = '';
   username = '';
   players: string[] = [];
   state: string = 'waiting';
@@ -68,7 +69,7 @@ export class GameComponent {
         }
       });
     } else {
-      this.wsStore.connect('ws://localhost:8081');
+      this.wsStore.connect('ws://'+ window.location.hostname +':8081');
       this.wsStore.getWebSocket().onopen = () => {
         this.wsStore.sendMessage({ type: 'getSketchGame', game: this.gameId });
         this.wsStore.getWebSocket().addEventListener('message', (event) => {
@@ -103,10 +104,12 @@ export class GameComponent {
 
   handleUpdateGame(message: any, forceCanDraw?: boolean) {
     if (message.state === 'waiting') {
+      this.owner = message.owner;
       this.players = message.players;
       this.state = message.state;
       this.canDraw = true;
     } else if (message.state === 'playing' || message.state === 'chooseWord') {
+      this.owner = message.owner;
       this.players = message.players;
       this.state = message.state;
       this.drawer = message.drawer;
@@ -123,6 +126,7 @@ export class GameComponent {
         console.log('Choose Word')
       }
     } else if (message.state === 'ended') {
+      this.owner = message.owner;
       this.players = message.players;
       this.state = message.state;
       this.roundWinners = message.roundWinners;
