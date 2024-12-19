@@ -94,7 +94,7 @@ const handleJoinSketchGame = (client: CustomWebSocket, message: ClientMessage) =
   const game = state.sketchGames.find((g) => g.id === message.game);
   const player: PlayerWebSocket = Object.assign(client, { score: 0 });
 
-  if (game && game.state === "waiting" && !game.players.find((p) => p.id === player.id)) {
+  if (game && !game.players.find((p) => p.id === player.id)) {
     game.addPlayer(player);
   }
 };
@@ -165,10 +165,17 @@ const handleIncomingMessage = (client: CustomWebSocket, data: any) => {
 
 // Ajoute un client au state et lui donne un pseudo et id
 const connectClient = (client: CustomWebSocket, username: string) => {
+  if (state.clients.find((c: CustomWebSocket) => c.username === username)) {
+    return client.send(JSON.stringify({
+      sender: "server",
+      value: "Username already taken",
+      type: "login",
+      success: false,
+    }));
+  }
     client.id = randomUUID();
     client.username = username;
     state.clients.push(client);
-    console.log('Client connected: ', client.username, client.id);
     
     const welcomeMessage = {
       sender: "server",
@@ -183,6 +190,7 @@ const connectClient = (client: CustomWebSocket, username: string) => {
         sender: "server",
         value: "Welcome to the chat",
         type: "login",
+        success: true,
         users: [...state.clients.map((c: CustomWebSocket) => c.username), username].filter((u, i, a) => a.indexOf(u) === i),
     }));
 

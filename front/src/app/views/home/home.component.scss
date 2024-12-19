@@ -1,9 +1,11 @@
+@import '../../../styles/variables.scss';
+
 .chat-container {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background-color: #f5f5f5;
+  background-color: $background-color;
   font-family: Arial, sans-serif;
   color: #333;
 
@@ -12,16 +14,22 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: white;
+    background: #fff;
     padding: 2rem;
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+    .login-error {
+      color: $accent-color;
+      font-style: italic;
+      font-weight: 600;  
+    }
 
     .login-title {
       margin-bottom: 1.5rem;
       font-size: 1.5rem;
       font-weight: bold;
-      color: #444;
+      color: $text-color;
     }
 
     .login-input {
@@ -44,23 +52,26 @@
 
         .login-button {
             padding: 0.75rem 1.5rem;
-            color: white;
+            color: $text-color;
+            font: 700;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-size: 1rem;
             transition: background-color 0.3s;
+            border: 1px solid;
+            border-color: $background-color;
 
             &:first-of-type {
-                background-color: #3498db;
+                background-color: $button-color;
                 &:hover {
-                    background-color: #2980b9;
+                    background-color: $button-color-hover;
                 }
             }
             &:last-of-type {
-                background-color: #3ce73f;
+                background-color: $primary-button-color;
                 &:hover {
-                    background-color: #2fb431;
+                    background-color: $primary-button-color-hover;
                 }
             }
             

@@ -16,9 +16,10 @@ export class GameComponent {
   error = '';
   inputUsername = '';
 
+  connected: boolean = false;
   owner: string = '';
   username = '';
-  players: string[] = [];
+  players: { username: string, score: number }[] = [];
   state: string = 'waiting';
   drawer: string = '';
   drawOrder: string[] = [];
@@ -29,12 +30,13 @@ export class GameComponent {
   round: number = 0;
   maxRound!: number;
   messages: {username: string, message: string}[] = [];
+  winner!: { username: string, score: number };
 
   gameId!: string;
   canDraw: boolean = false;
 
   constructor(private cookieService: CookieService, private route: Router, private activatedRoute: ActivatedRoute, private wsStore: WebSocketStoreService) {
-    this.username = this.cookieService.get('username');
+    this.username = this.cookieService.get('username') ?? '';
     this.activatedRoute.params.subscribe(params => {
         this.gameId = params['id'];
     });
@@ -44,6 +46,7 @@ export class GameComponent {
     const handlers: { [key: string]: () => void } = {
       gameUpdated: () => this.handleUpdateGame(message),
       getSketchGame: () => this.handleGetSketchGame(message),
+      login: () => this.handleLogin(message),
       playerJoined: () => this.handleUpdateGame(message),
       playerLeft: () => this.handleUpdateGame(message),
       startDrawing: () => this.handleUpdateGame(message, false),
@@ -51,6 +54,8 @@ export class GameComponent {
       timerUpdate: () => this.handleTimerUpdate(message),
       nextDrawer: () => this.handleUpdateGame(message, false),
       gameEnded: () => this.handleUpdateGame(message, false),
+      foundWord: () => this.handleFoundWord(message),
+      guess: () => this.handleUpdateGame(message),
     };
 
     if (handlers[message.type]) {
@@ -59,7 +64,21 @@ export class GameComponent {
   }
 
   ngOnInit() {
+    this.username = this.cookieService.get('username');
+    if (!this.username) {
+      this.promptForUsername();
+    } else {
+      this.connectToWebSocket();
+    }
+  }
+
+  promptForUsername() {
+    this.error = 'Please enter a valid username';
+  }
+
+  connectToWebSocket() {
     if (this.wsStore.getWebSocket()) {
+      console.log('connected to websocket');
       this.wsStore.sendMessage({type: 'getSketchGame', game: this.gameId})
       this.wsStore.getWebSocket().addEventListener('message', (event) => {
         try {
@@ -70,9 +89,11 @@ export class GameComponent {
         }
       });
     } else {
+      console.log('connecting to websocket');
+      console.log(this.username);
+      this.username = this.inputUsername
       this.wsStore.connect('ws://'+ window.location.hostname +':8081');
       this.wsStore.getWebSocket().onopen = () => {
-        this.wsStore.sendMessage({ type: 'getSketchGame', game: this.gameId });
         this.wsStore.getWebSocket().addEventListener('message', (event) => {
           try {
           const message = JSON.parse(event.data);
@@ -82,41 +103,51 @@ export class GameComponent {
           console.error('Invalid JSON format:', event.data);
         }
         });
+        this.wsStore.sendMessage({ type: 'connect', username: this.username });
       }
     }
   }
 
-
   handleGetSketchGame(message: any) {
+    console.log('getSketchGame:', message);
     if (message.state === 'notFound') {
       this.route.navigate(['/']);
     } else {
-      if (message.players.includes(this.username)) {
+      if (message.players.find((p: { username: string, score: number }) => p.username === this.username)) {
+        this.connected = true;
         this.handleUpdateGame(message);
-      }
-      else {
-        this.wsStore.sendMessage({ type: 'connect', username: this.username, game: this.gameId });
+      } else {
+        this.connected = true;
+        console.log('joining game:', this.username, this.gameId);
         this.wsStore.sendMessage({ type: 'joinSketchGame', username: this.username, game: this.gameId });
       }
-      
     }
-    
+  }
+
+  handleLogin(message: any) {
+    if (message.success) {
+      console.log('login:', message);
+      this.wsStore.sendMessage({type: 'getSketchGame', game: this.gameId})
+    } else {
+      this.error = 'Username already taken';
+    }
   }
 
   handleUpdateGame(message: any, forceCanDraw?: boolean) {
+    console.log('updateGame:', message);
     if (message.state === 'waiting') {
       this.owner = message.owner;
-      this.players = message.players;
+      this.players = message.players.map((p: { username: string, score: number }) => ({ ...p }));
       this.state = message.state;
       this.canDraw = true;
     } else if (message.state === 'playing' || message.state === 'chooseWord') {
       this.owner = message.owner;
-      this.players = message.players;
+      this.players = message.players.map((p: { username: string, score: number }) => ({ ...p }));
       this.state = message.state;
       this.drawer = message.drawer;
-      this.drawOrder = message.drawOrder;
+      this.drawOrder = message.drawOrder ?? this.drawOrder;
       this.time = message.time;
-      this.roundWinners = message.roundWinners;
+      this.roundWinners = message.roundWinners ?? this.roundWinners;
       this.round = message.round;
       this.maxRound = message.maxRound;
       if (message.state === 'chooseWord') {
@@ -124,20 +155,21 @@ export class GameComponent {
           this.words = message.words;
         }
         this.canDraw = false;
-        console.log('Choose Word')
       }
     } else if (message.state === 'ended') {
       this.owner = message.owner;
-      this.players = message.players;
+      this.players = message.players.map((p: { username: string, score: number }) => ({ ...p }));
       this.state = message.state;
-      this.roundWinners = message.roundWinners;
+      this.roundWinners = message.roundWinners ?? this.roundWinners;
       this.round = message.round;
-      this.players = message.players;
+      this.winner = message.winner;
+      console.log('winner:', this.winner, 'message:', message.winner);
     }
 
     if (forceCanDraw) {
       this.canDraw = forceCanDraw;
     }
+
   }
 
   handleWordChosen(message: any) {
@@ -153,14 +185,14 @@ export class GameComponent {
 
   handleTimerUpdate(message: any) {
     this.time = message.time;
-    if (message.word && (this.username !== this.drawer || !message.roundWinners.includes(this.username))) {
-      this.word = message.word;
-    }
+
+    this.word = message.word;
 
     if (message.time === 0) {
       this.canDraw = false;
     }
   }
+
 
   launchGame() {
     this.wsStore.sendMessage({ type: 'launchSketchGame', game: this.gameId });
@@ -178,7 +210,41 @@ export class GameComponent {
     }
     this.cookieService.set('username', this.inputUsername);
     this.username = this.inputUsername;
+    this.connectToWebSocket();
     this.wsStore.sendMessage({ type: 'connect', username: this.inputUsername, game: this.gameId });
     this.wsStore.sendMessage({ type: 'joinSketchGame', username: this.inputUsername, game: this.gameId });
+  }
+
+  handleFoundWord(message: any) {
+    this.roundWinners = message.roundWinners;
+    this.word = message.word;
+  }
+
+  getStateBadge() {
+    if (this.state === 'waiting') {
+      return 'Waiting';
+    } else if (this.state === 'playing') {
+      return 'Game in progress';
+    } else if (this.state === 'chooseWord') {
+      return 'Chose a word';
+    } else if (this.state === 'ended') {
+      return 'Game Ended';
+    } else {
+      return '';
+    }
+  }
+
+  getStateText() {
+      if (this.state === 'waiting') {
+        return 'Waiting for players';
+      } else if (this.state === 'playing') {
+        return 'Playing';
+      } else if (this.state === 'chooseWord') {
+        return 'A player is choosing a word';
+      } else if (this.state === 'ended') {
+        return 'Game has ended and the winner is ' + this.winner.username;
+    } else {
+      return '';
+    }
   }
 }

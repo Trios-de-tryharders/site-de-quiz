@@ -18,7 +18,7 @@ import { CookieService } from 'ngx-cookie-service';
 })
 export class ChatComponent implements OnInit {
   @Input() gameId!: string;
-  @Input() players!: string[];
+  @Input() playersLength!: number;
 
   username: string = '';
   messages: {username: string, value: string, sender: string}[] = [];
@@ -45,7 +45,7 @@ export class ChatComponent implements OnInit {
         } else if (message.type === 'writting') {
           this.writtingUsers = message.writtingUsers;
         } else if (message.type === 'gameUpdated') {
-          this.players = message.players;
+          this.playersLength = message.players.length;
         } else if (message.type === 'guess') {
           this.addMessage(message);
         } else if (message.type === 'playerJoined') {

@@ -1,8 +1,10 @@
+@import '../../../styles/variables.scss';
+
 .chat-container {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  height: 100%;
+  width: 300px;
+  height: 0;
   min-height: 100%;
   border: 1px solid #ccc;
   border-radius: 8px;
@@ -16,6 +18,16 @@
   margin-bottom: 10px;
 }
 
+.username-wrapper {
+  position: relative;
+  display: inline-block;
+
+  .username {
+    color: $accent-color;
+    font-weight: bold;
+  }
+}
+
 .message {
   margin: 5px 0;
   padding: 8px;
@@ -24,36 +36,35 @@
   word-wrap: break-word; /* Casse les longs mots */
 
   &.self {
-    background-color: #c8e6c9; /* Vert clair */
-    color: #1b5e20;
+    background-color: $primary-button-color; /* Vert clair */
+    color: black;
     margin-left: auto; /* Alignement à droite */
     text-align: right;
+    .username-wrapper{
+      .username {
+        color: $background-color;
+      }
+    }
   }
 
   &.user {
-    background-color: #ffecb3; /* Jaune clair */
-    color: #795548;
+    background-color: $button-color; /* Jaune clair */
+    color: black;
     margin-right: auto; /* Alignement à gauche */
     text-align: left;
-    .username {
-    &:hover {
-      background-color: lighten(#ffecb3, 10%);
-      cursor: pointer;
-    }
-  }
   }
 
   &.server {
-    background-color: #e1f5fe; /* Bleu clair */
+    background-color: $light-accent-color; /* Bleu clair */
     width: 100%;
     max-width: 100%;
-    color: #0288d1;
+    color: #fff;
     text-align: center;
     font-style: italic;
   }
 
   &.error {
-    background-color: #e6534c; /* Vert clair */
+    background-color: $accent-color; /* Vert clair */
     width: 100%;
     max-width: 100%;
     color: #070707;
@@ -65,6 +76,9 @@
 .chat-input {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
 }
 
 .chat-input input {
@@ -72,92 +86,27 @@
   padding: 5px;
   border-radius: 4px;
   border: 1px solid #ccc;
+  width: 100%;
 }
 
 .chat-input button {
   padding: 5px 10px;
   border: none;
-  background-color: #0288d1;
+  background-color: $accent-color;
   color: white;
   border-radius: 4px;
   cursor: pointer;
 }
 
 .chat-input button:hover {
-  background-color: #0277bd;
+  background-color: $accent-color;
 }
 
 
 .chat-header {
-  background-color: #0288d1;
-  color: white;
+  background-color: $accent-color;
+  color: #fff;
   padding: 10px;
   border-radius: 4px 4px 0 0;
   text-align: center;
-}
-.chat-challenge, .chat-duel {
-  background-color: #fff3e0; /* Light orange */
-  border: 1px solid #ffb74d;
-  border-radius: 8px;
-  padding: 10px;
-  margin-top: 10px;
-  text-align: center;
-}
-
-.chat-actions {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-}
-
-.chat-actions button {
-  padding: 5px 10px;
-  border: none;
-  background-color: #ffb74d;
-  color: white;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.chat-actions button:hover {
-  background-color: #ffa726;
-}
-
-.username-wrapper {
-  position: relative;
-  display: inline-block;
-
-  .username {
-    cursor: pointer;
-    color: #3498db;
-    font-weight: bold;
-  }
-
-  .dropdown-menu {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    background: #ffffff;
-    border: 1px solid #ccc;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-    display: none; // Caché par défaut
-    z-index: 10;
-
-    button {
-      background: none;
-      border: none;
-      width: 100%;
-      padding: 5px 10px;
-      cursor: pointer;
-      text-align: left;
-
-      &:hover {
-        background: #f5f5f5;
-      }
-    }
-  }
-
-  &:hover .dropdown-menu {
-    display: block; // Affiche le menu lorsqu'on survole le pseudo
-  }
 }

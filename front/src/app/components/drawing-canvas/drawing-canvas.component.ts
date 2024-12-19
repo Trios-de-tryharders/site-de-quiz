@@ -46,8 +46,12 @@ export class DrawingCanvasComponent implements AfterViewInit {
         const message = JSON.parse(event.data);
         if (message.type === 'canvas') {
           this.displayCanvas(message.image);
-        } else if (message.type === 'login') {
+        } else if (message.type === 'getSketchGame') {
           this.displayCanvas(message.image);
+        } else if (message.type === 'startDrawing') {
+          this.resetCanvas();
+          this.oldCanvas = [];
+          this.newCanvas = '';
         }
         this.gameState = message.state;
       } catch (e) {
@@ -57,8 +61,9 @@ export class DrawingCanvasComponent implements AfterViewInit {
   }
 
   ngAfterViewInit() {
-    const canvas = this.drawingCanvas.nativeElement;
-    this.ctx = canvas.getContext('2d')!;
+      const canvas = this.drawingCanvas.nativeElement;
+      this.ctx = canvas.getContext('2d')!;
+
 
     // Écoute des événements
     canvas.addEventListener('mousedown', (event) => {
@@ -77,18 +82,19 @@ export class DrawingCanvasComponent implements AfterViewInit {
   }
 
   startDrawing(event: MouseEvent) {
-    this.isDrawing = true;
-    const { offsetX, offsetY } = event;
-    this.ctx.beginPath();
-    this.ctx.moveTo(offsetX, offsetY);
-  }
+  this.isDrawing = true;
+  const { x, y } = this.getMousePosition(event);
+  this.ctx.beginPath();
+  this.ctx.moveTo(x, y);
+}
 
   draw(event: MouseEvent) {
     if (!this.isDrawing || !this.canDraw) return;
-    const { offsetX, offsetY } = event;
-    this.ctx.lineTo(offsetX, offsetY);
-    this.ctx.strokeStyle = this.penColor; // Utilise la couleur sélectionnée
-    this.ctx.lineWidth = this.penSize;    // Utilise la taille sélectionnée
+
+    const { x, y } = this.getMousePosition(event);
+    this.ctx.lineTo(x, y);
+    this.ctx.strokeStyle = this.penColor;
+    this.ctx.lineWidth = this.penSize;
     this.ctx.lineCap = 'round';
     this.ctx.stroke();
 
@@ -258,5 +264,17 @@ export class DrawingCanvasComponent implements AfterViewInit {
 
     ctx.putImageData(imageData, 0, 0);
   }
+
+  getMousePosition(event: MouseEvent): { x: number; y: number } {
+  const canvas = this.drawingCanvas.nativeElement;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+
+  return {
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY,
+  };
+}
 
 }

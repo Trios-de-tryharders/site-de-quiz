@@ -3,11 +3,19 @@
 
 .drawing-panel {
   @include card;
+  border-radius: 0;
   padding: 1rem;
   background: white;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+
+  label {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    align-items: center;
+  }
 }
 
 .canvas-container {
@@ -24,7 +32,6 @@
   background-color: white;
   cursor: crosshair;
   touch-action: none;
-  max-width: 100%;
   height: auto;
 
   &.disabled {
@@ -37,6 +44,7 @@
   gap: 1rem;
   justify-content: center;
   padding-top: 0.5rem;
+  align-items: center;
 }
 
 .control-button {
@@ -54,6 +62,8 @@
   &:hover:not(:disabled) {
     background-color: darken($primary-color, 10%);
   }
+
+  
 }
 
 .button-text {

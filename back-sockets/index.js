@@ -85,7 +85,7 @@ var handleCreateSketchGame = function (client) {
 var handleJoinSketchGame = function (client, message) {
     var game = state.sketchGames.find(function (g) { return g.id === message.game; });
     var player = Object.assign(client, { score: 0 });
-    if (game && game.state === "waiting" && !game.players.find(function (p) { return p.id === player.id; })) {
+    if (game && !game.players.find(function (p) { return p.id === player.id; })) {
         game.addPlayer(player);
     }
 };
@@ -138,10 +138,17 @@ var handleIncomingMessage = function (client, data) {
 };
 // Ajoute un client au state et lui donne un pseudo et id
 var connectClient = function (client, username) {
+    if (state.clients.find(function (c) { return c.username === username; })) {
+        return client.send(JSON.stringify({
+            sender: "server",
+            value: "Username already taken",
+            type: "login",
+            success: false,
+        }));
+    }
     client.id = (0, node_crypto_1.randomUUID)();
     client.username = username;
     state.clients.push(client);
-    console.log('Client connected: ', client.username, client.id);
     var welcomeMessage = {
         sender: "server",
         username: username,
@@ -153,6 +160,7 @@ var connectClient = function (client, username) {
         sender: "server",
         value: "Welcome to the chat",
         type: "login",
+        success: true,
         users: __spreadArray(__spreadArray([], state.clients.map(function (c) { return c.username; }), true), [username], false).filter(function (u, i, a) { return a.indexOf(u) === i; }),
     }));
     console.log('Clients:', state.clients.map(function (c) { return c.username; }));
