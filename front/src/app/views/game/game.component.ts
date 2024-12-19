@@ -4,14 +4,17 @@ import { CookieService } from 'ngx-cookie-service';
 import { WebSocketStoreService } from '../../services/websocket-store.service';
 import { DrawingCanvasComponent } from '../../components/drawing-canvas/drawing-canvas.component';
 import { ChatComponent } from '../../components/chat/chat.component';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-game',
-  imports: [DrawingCanvasComponent, ChatComponent],
+  imports: [DrawingCanvasComponent, ChatComponent, FormsModule],
   templateUrl: './game.component.html',
   styleUrl: './game.component.scss'
 })
 export class GameComponent {
+  error = '';
+  inputUsername = '';
 
   username = '';
   players: string[] = [];
@@ -19,6 +22,7 @@ export class GameComponent {
   drawer: string = '';
   drawOrder: string[] = [];
   word: string = '';
+  words: string[] = [];
   time!: number;
   roundWinners: string[] = [];
   round: number = 0;
@@ -32,7 +36,6 @@ export class GameComponent {
     this.username = this.cookieService.get('username');
     this.activatedRoute.params.subscribe(params => {
         this.gameId = params['id'];
-        console.log('ID de la route :', this.gameId);
     });
   }
 
@@ -41,6 +44,10 @@ export class GameComponent {
       gameUpdated: () => this.handleUpdateGame(message),
       getSketchGame: () => this.handleGetSketchGame(message),
       playerJoined: () => this.handleUpdateGame(message),
+      playerLeft: () => this.handleUpdateGame(message),
+      startDrawing: () => this.handleUpdateGame(message),
+      wordChosen: () => this.handleWordChosen(message),
+      timerUpdate: () => this.handleTimerUpdate(message),
     };
 
     if (handlers[message.type]) {
@@ -51,7 +58,6 @@ export class GameComponent {
   ngOnInit() {
     if (this.wsStore.getWebSocket()) {
       this.wsStore.sendMessage({type: 'getSketchGame', game: this.gameId})
-      console.log('ReadyState', this.wsStore.getWebSocket().readyState === WebSocket.OPEN)
       this.wsStore.getWebSocket().addEventListener('message', (event) => {
         try {
           const message = JSON.parse(event.data);
@@ -104,12 +110,13 @@ export class GameComponent {
       this.state = message.state;
       this.drawer = message.drawer;
       this.drawOrder = message.drawOrder;
-      this.word = message.word;
       this.time = message.time;
       this.roundWinners = message.roundWinners;
       this.round = message.round;
       this.maxRound = message.maxRound;
-      this.canDraw = this.drawer === this.username;
+      if (message.state === 'chooseWord' && this.drawer === this.username) {
+        this.words = message.words;
+      }
     } else if (message.state === 'ended') {
       this.players = message.players;
       this.state = message.state;
@@ -119,7 +126,44 @@ export class GameComponent {
     }
   }
 
-  lauchGame() {
+  handleWordChosen(message: any) {
+    if (message.username === this.username) {
+      this.words = [];
+    } else {
+      this.word = message.word;
+      this.canDraw = true;
+    }
+    this.state = message.state;
+  }
+
+  handleTimerUpdate(message: any) {
+    this.time = message.time;
+    if (this.word) {
+      this.time = message.time;
+    }
+
+    if (message.time === 0) {
+      this.canDraw = false;
+    }
+  }
+
+  launchGame() {
     this.wsStore.sendMessage({ type: 'launchSketchGame', game: this.gameId });
+  }
+
+  chooseWord(word: string) {
+    this.word = word;
+    this.wsStore.sendMessage({ type: 'chooseWord', game: this.gameId, value: word });
+  }
+
+  connectToGame() {
+    if (!this.inputUsername || /^\s*$/.test(this.inputUsername)) {
+      this.error = 'Please enter a valid username';
+      return;
+    }
+    this.cookieService.set('username', this.inputUsername);
+    this.username = this.inputUsername;
+    this.wsStore.sendMessage({ type: 'connect', username: this.inputUsername, game: this.gameId });
+    this.wsStore.sendMessage({ type: 'joinSketchGame', username: this.inputUsername, game: this.gameId });
   }
 }

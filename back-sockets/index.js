@@ -42,6 +42,7 @@ var messageHandlers = {
     joinSketchGame: function (client, message) { return handleJoinSketchGame(client, message); },
     getSketchGame: function (client, message) { return handleGetSketchGame(client, message); },
     launchSketchGame: function (client, message) { return handleLaunchSketchGame(client, message); },
+    chooseWord: function (client, message) { return handleChooseWord(client, message); },
     guess: function (client, message) { return handleGuess(client, message); },
     canvas: function (client, message) { return handleCanvas(client, message); },
     hello: function (client, message) { return console.log('Hello', client.id); }
@@ -52,6 +53,15 @@ var handleCanvas = function (client, message) {
         return;
     game.canvas = message.image;
     game.sendCanvas();
+};
+var handleChooseWord = function (client, message) {
+    var game = state.sketchGames.find(function (g) { return g.id === message.game; });
+    if (!game)
+        return;
+    var player = game.players.find(function (p) { return p.id === client.id; });
+    if (!player)
+        return;
+    game.chooseWord(player, message.value);
 };
 // Fonction permettant d'envoyer un message à une liste d'utilisateur
 var broadcast = function (clients, message) {
@@ -95,6 +105,7 @@ var handleGetSketchGame = function (client, message) {
 var handleLaunchSketchGame = function (client, message) {
     var game = state.sketchGames.find(function (g) { return g.id === message.game; });
     if (game && game.owner.id === client.id) {
+        console.log('Launching game:', game);
         game.startGame();
     }
 };
@@ -141,11 +152,9 @@ var connectClient = function (client, username) {
     broadcast(__spreadArray([], state.clients.filter(function (c) { return c.id !== client.id; }), true), welcomeMessage);
     client.send(JSON.stringify({
         sender: "server",
-        username: "server",
         value: "Welcome to the chat",
         type: "login",
         users: __spreadArray(__spreadArray([], state.clients.map(function (c) { return c.username; }), true), [username], false).filter(function (u, i, a) { return a.indexOf(u) === i; }),
-        image: state.canvas
     }));
     console.log('Clients:', state.clients.map(function (c) { return c.username; }));
 };

@@ -10,6 +10,7 @@ export class SketchGameManager implements SketchGames {
     players: PlayerWebSocket[];
     state: string;
     word: string;
+    words: string[] = [];
     round: number = 0;
     maxRound: number;
     roundDuration: number;
@@ -151,8 +152,16 @@ export class SketchGameManager implements SketchGames {
         if (this.state === 'playing' || this.state === 'chooseWord') {
             return;
         }
-        
+
         this.state = 'chooseWord';
+
+        this.round = 0;
+        this.roundWinners = [];
+        this.words = [];
+
+        this.canvas = '';
+
+        this.sendCanvas();
 
         const playersCopy = [...this.players];
 
@@ -162,6 +171,7 @@ export class SketchGameManager implements SketchGames {
         }
 
         this.drawer = this.drawOrder[0];
+        this.words = this.getRandomWords(3);
 
         this.players.forEach((p) => {
             if (p.id === this.drawer?.id) {
@@ -169,7 +179,7 @@ export class SketchGameManager implements SketchGames {
                     JSON.stringify({
                         ...this.getGameInfo(),
                         type: 'startDrawing',
-                        words: this.getRandomWords(3),
+                        words: this.words,
                     })
                 );
             } else {
@@ -185,28 +195,37 @@ export class SketchGameManager implements SketchGames {
     }
 
     chooseWord(player: PlayerWebSocket, word: string) {
-        if (this.isPlayerDrawer(player) && this.state === 'chooseWord') {
+        if (this.isPlayerDrawer(player) && this.state === 'chooseWord' && this.words.includes(word)) {
             this.word = word;
             this.state = 'playing';
             this.time = this.roundDuration;
-
-            this.players.forEach((p) => {
-                p.send(
-                    JSON.stringify({
-                        sender: 'server',
-                        type: 'startDrawing',
-                        words: this.getRandomWords(3),
-                        ...this.getGameInfo(),
-                    })
-                );
-            });
-
             this.startTimer();
+            this.canvas = '';
+
+            this.broadcastGameEvent('wordChosen', { username: this.drawer?.username, word: this.getHiddenWord() });
         }
     }
 
+    getHiddenWord() {
+        return this.word.replace(/[a-zA-Z]/g, '_');
+    }
+
+    getRandomPartOfWord() {
+        let hiddenWord: string = this.getHiddenWord();
+        const i = Math.floor(Math.random() * hiddenWord.length - 1);
+        let hiddenWordArray = hiddenWord.split('');
+        hiddenWordArray[i] = this.word[i];
+        hiddenWord = hiddenWordArray.join('');
+        return hiddenWord;
+    }
+
     guessWord(player: PlayerWebSocket, word: ClientMessage) {
-        if (word.value.toLowerCase() === this.word.toLowerCase()) {
+        if (word.value.toLowerCase() === this.word.toLowerCase() 
+            && !this.roundWinners.find((p) => p.id === player.id) 
+            && !this.isPlayerDrawer(player) 
+            && this.state === 'playing'
+            && this.time > 0
+        ) {
             player.score += 100 * (1 / this.roundWinners.length);
             this.roundWinners.push(player);
 
@@ -230,7 +249,9 @@ export class SketchGameManager implements SketchGames {
     nextDrawer() {
         const index = this.drawOrder.indexOf(this.drawer as PlayerWebSocket);
         this.word = '';
-        if (index + 1 >= this.drawOrder.length) {
+        this.words = [];
+        
+        if (index === this.drawOrder.length) {
             this.nextRound();
         } else {
             this.drawer = this.drawOrder[index + 1];
@@ -256,32 +277,9 @@ export class SketchGameManager implements SketchGames {
             return;
         }
 
-        this.drawer = this.drawOrder[this.round];
+        this.drawer = this.drawOrder[0];
 
-        this.players.forEach((p) => {
-            if (p.id === this.drawer?.id) {
-                p.send(
-                    JSON.stringify({
-                        sender: 'server',
-                        type: 'startDrawing',
-                        words: this.getRandomWords(3),
-                        ...this.getGameInfo(),                        
-                    })
-                )
-            }
-            else {
-                p.send(
-                    JSON.stringify({
-                        sender: 'server',
-                        type: 'nextRound',
-                        gameId: this.id,
-                        drawer: this.players.find((p) => p.id === this.drawer?.id)?.username,
-                    })
-                );
-            }
-            
-
-        });
+        this.nextDrawer();
     }
 
     endGame() {
@@ -324,8 +322,13 @@ export class SketchGameManager implements SketchGames {
                 this.stopTimer();
                 this.nextDrawer();
             }
+
+            if (this.time === 40 || this.time === 20) {
+                this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.getRandomPartOfWord() });
+            } else {
+                this.broadcastGameEvent('timerUpdate', { time: this.time });
+            }
             
-            this.broadcastGameEvent('timerUpdate', { time: this.time });
         }, 1000);
     }
 

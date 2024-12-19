@@ -1,2 +1,43 @@
-<app-drawing-canvas [gameId]="gameId" [canDraw]="canDraw"></app-drawing-canvas>
-<app-chat [gameId]="gameId" [players]="players"></app-chat>
+@if (username) {
+    {{ state}}
+    <h1>Sketch Game</h1>
+    @if (state === 'waiting') {
+        <h2>Waiting for players...</h2>
+    } @else if (state === 'chooseWord' && drawer === username) {
+        @for (w of words; track w) {
+            <button (click)="chooseWord(w)" class="word-button">{{ w }}</button>
+        }
+    } @else if (state === 'playing') {
+        <h2>Word: {{ word }}</h2>
+        <h3>Time left: {{ time }}</h3>
+        <h3>Drawer: {{ drawer }}</h3>
+        <h3>Players:</h3>
+        <ul>
+            @for (p of players; track p) {
+                <li>{{ p }}</li>
+            }
+        </ul>
+    }
+    <app-drawing-canvas [gameId]="gameId" [canDraw]="canDraw"></app-drawing-canvas>
+    <button (click)="launchGame()">Launch Game</button>
+    <app-chat [gameId]="gameId" [players]="players"></app-chat>
+} @else {    
+    <div class="login-container">
+      <h2 class="login-title">Welcome to the Sketch Game!</h2>
+      @if (error) {
+        <p class="login-error">{{ error }}</p>
+      }
+      <input
+        type="text"
+        [(ngModel)]="inputUsername"
+        placeholder="Enter your username"
+        class="login-input"
+        (keydown.enter)="connectToGame()"
+      />
+      <div class="login-buttons w-full">
+        <button (click)="connectToGame()" class="login-button">
+            Connect to game
+        </button>
+      </div>
+    </div>
+}

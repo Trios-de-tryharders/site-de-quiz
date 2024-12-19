@@ -32,7 +32,6 @@ export class HomeComponent {
     this.wsStore.getWebSocket().addEventListener('message', (event) => {
       try {
         const message = JSON.parse(event.data);
-        console.log('message:', message);
         if (message.type === 'gameStarted') {
           this.users = message.players;
         } else if (message.type === 'gameCreated') {
@@ -52,7 +51,6 @@ export class HomeComponent {
     this.wsStore.sendMessage({ type: 'connect', username: this.username });
 
     this.wsStore.sendMessage({ type: 'createSketchGame', username: this.username });
-    console.log('create game');
   }
 
   connectToGame() {

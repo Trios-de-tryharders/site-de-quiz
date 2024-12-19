@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, AfterViewInit, Input } from '@angular/core';
+import { Component, ElementRef, ViewChild, AfterViewInit, Input, Renderer2 } from '@angular/core';
 import { WebSocketStoreService } from '../../services/websocket-store.service';
 
 @Component({
@@ -17,22 +17,38 @@ export class DrawingCanvasComponent implements AfterViewInit {
   private ctx!: CanvasRenderingContext2D;
   private isDrawing: boolean = false;
 
-  private newCanvas!: string;
-  private oldCanvas: string = '';
+  private newCanvas: string = '';
+  private oldCanvas: string[] = [];
 
-  constructor(private wsStore: WebSocketStoreService) { }
+  gameState: string = '';
+  private timeoutId: any = null;
+
+  private keyDownListener: () => void;
+
+  constructor(private wsStore: WebSocketStoreService, private render: Renderer2) { 
+    this.keyDownListener = this.render.listen('document', 'keydown', (event: KeyboardEvent) => {
+      if (event.key === 'u') {
+        console.log('Old canvas:', this.oldCanvas);
+        this.newCanvas = this.oldCanvas.pop() ?? '';
+        if (this.newCanvas === '') {
+          this.resetCanvas();
+        } else {
+          this.sendCanvas(this.newCanvas);
+        }
+      }
+    });
+  }
 
   ngOnInit() {
     this.wsStore.getWebSocket().addEventListener('message', (event) => {
       try {
         const message = JSON.parse(event.data);
-        console.log('Received message:', message);
         if (message.type === 'canvas') {
-          console.log('Received canvas');
           this.displayCanvas(message.image);
         } else if (message.type === 'login') {
           this.displayCanvas(message.image);
         }
+        this.gameState = message.state;
       } catch (e) {
         console.error('Invalid JSON format:', event.data);
       }
@@ -57,21 +73,33 @@ export class DrawingCanvasComponent implements AfterViewInit {
   }
 
   draw(event: MouseEvent) {
-    if (!this.isDrawing && this.canDraw) return;
+    if (!this.isDrawing || !this.canDraw) return;
     const { offsetX, offsetY } = event;
     this.ctx.lineTo(offsetX, offsetY);
     this.ctx.strokeStyle = '#000';
     this.ctx.lineWidth = 2;
     this.ctx.lineCap = 'round';
     this.ctx.stroke();
+
+    if (this.oldCanvas.includes(this.exportCanvas()) && this.gameState === 'playing') {
+      if (this.timeoutId) {
+        clearTimeout(this.timeoutId); // Annule le timeout précédent
+      }
+      this.timeoutId = setTimeout(() => {
+        this.sendCanvas();
+      }, 100);
+    }
   }
 
   stopDrawing() {
     this.isDrawing = false;
     this.ctx.closePath();
-    if (this.oldCanvas !== this.exportCanvas()) {
+    if (!this.oldCanvas.includes(this.exportCanvas()) && this.canDraw) {
+      this.oldCanvas.push(this.newCanvas);
       this.newCanvas = this.exportCanvas();
-      this.oldCanvas = this.newCanvas;
+      if (this.oldCanvas.length > 10) {
+        this.oldCanvas.shift();
+      }
       this.sendCanvas();
     }
   }
@@ -94,9 +122,30 @@ export class DrawingCanvasComponent implements AfterViewInit {
     img.src = base64Image;
   }
 
-  sendCanvas() {
-    console.log('Sending canvas');
-    const canvasImage = this.exportCanvas(); // Récupère le base64 depuis le canvas
+  resetCanvas() {
+    const canvas = this.drawingCanvas.nativeElement;
+    this.ctx.clearRect(0, 0, canvas.width, canvas.height); // Efface tout le contenu du canvas
+    this.newCanvas = '';
+    this.oldCanvas = []; // Réinitialise également l'historique des dessins
+    console.log('Canvas reset');
+
+    // Envoyer un canvas vide aux autres joueurs
+    const emptyCanvas = canvas.toDataURL('image/png');
+    this.sendCanvas(emptyCanvas);
+  }
+
+
+  sendCanvas(canvas?: string) {
+    console.log('Sending canvas', canvas);
+    let canvasImage = ''; 
+    if (canvas !== undefined) {
+      console.log('Sending old canvas');
+      canvasImage = canvas;
+    }
+    else {
+      console.log('Sending new canvas');
+      canvasImage = this.exportCanvas(); // Récupère le base64 depuis le canvas
+    }
     const message = {
       type: 'canvas',
       image: canvasImage,

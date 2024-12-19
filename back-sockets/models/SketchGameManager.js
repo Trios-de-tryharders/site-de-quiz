@@ -26,6 +26,7 @@ var SketchGameManager = /** @class */ (function () {
     function SketchGameManager(gameId, owner, maxRound, roundDuration) {
         if (maxRound === void 0) { maxRound = 3; }
         if (roundDuration === void 0) { roundDuration = 60; }
+        this.words = [];
         this.round = 0;
         this.roundWinners = [];
         this.drawOrder = [];
@@ -141,17 +142,26 @@ var SketchGameManager = /** @class */ (function () {
     };
     SketchGameManager.prototype.startGame = function () {
         var _this = this;
+        if (this.state === 'playing' || this.state === 'chooseWord') {
+            return;
+        }
         this.state = 'chooseWord';
+        this.round = 0;
+        this.roundWinners = [];
+        this.words = [];
+        this.canvas = '';
+        this.sendCanvas();
         var playersCopy = __spreadArray([], this.players, true);
         for (var i = 0; i < this.players.length; i++) {
             var player = playersCopy.splice(Math.floor(Math.random() * playersCopy.length - 1), 1)[0];
             this.drawOrder.push(player);
         }
         this.drawer = this.drawOrder[0];
+        this.words = this.getRandomWords(3);
         this.players.forEach(function (p) {
             var _a;
             if (p.id === ((_a = _this.drawer) === null || _a === void 0 ? void 0 : _a.id)) {
-                p.send(JSON.stringify(__assign(__assign({}, _this.getGameInfo()), { type: 'startDrawing', words: _this.getRandomWords(3) })));
+                p.send(JSON.stringify(__assign(__assign({}, _this.getGameInfo()), { type: 'startDrawing', words: _this.words })));
             }
             else {
                 p.send(JSON.stringify(__assign(__assign({}, _this.getGameInfo()), { type: 'gameUpdated' })));
@@ -159,19 +169,33 @@ var SketchGameManager = /** @class */ (function () {
         });
     };
     SketchGameManager.prototype.chooseWord = function (player, word) {
-        var _this = this;
-        if (this.isPlayerDrawer(player) && this.state === 'chooseWord') {
+        var _a;
+        if (this.isPlayerDrawer(player) && this.state === 'chooseWord' && this.words.includes(word)) {
             this.word = word;
             this.state = 'playing';
             this.time = this.roundDuration;
-            this.players.forEach(function (p) {
-                p.send(JSON.stringify(__assign({ sender: 'server', type: 'startDrawing', words: _this.getRandomWords(3) }, _this.getGameInfo())));
-            });
             this.startTimer();
+            this.canvas = '';
+            this.broadcastGameEvent('wordChosen', { username: (_a = this.drawer) === null || _a === void 0 ? void 0 : _a.username, word: this.getHiddenWord() });
         }
     };
+    SketchGameManager.prototype.getHiddenWord = function () {
+        return this.word.replace(/[a-zA-Z]/g, '_');
+    };
+    SketchGameManager.prototype.getRandomPartOfWord = function () {
+        var hiddenWord = this.getHiddenWord();
+        var i = Math.floor(Math.random() * hiddenWord.length - 1);
+        var hiddenWordArray = hiddenWord.split('');
+        hiddenWordArray[i] = this.word[i];
+        hiddenWord = hiddenWordArray.join('');
+        return hiddenWord;
+    };
     SketchGameManager.prototype.guessWord = function (player, word) {
-        if (word.value.toLowerCase() === this.word.toLowerCase()) {
+        if (word.value.toLowerCase() === this.word.toLowerCase()
+            && !this.roundWinners.find(function (p) { return p.id === player.id; })
+            && !this.isPlayerDrawer(player)
+            && this.state === 'playing'
+            && this.time > 0) {
             player.score += 100 * (1 / this.roundWinners.length);
             this.roundWinners.push(player);
             if (this.roundWinners.length === this.players.length - 1) {
@@ -194,7 +218,8 @@ var SketchGameManager = /** @class */ (function () {
         var _this = this;
         var index = this.drawOrder.indexOf(this.drawer);
         this.word = '';
-        if (index + 1 >= this.drawOrder.length) {
+        this.words = [];
+        if (index === this.drawOrder.length) {
             this.nextRound();
         }
         else {
@@ -206,27 +231,13 @@ var SketchGameManager = /** @class */ (function () {
         }
     };
     SketchGameManager.prototype.nextRound = function () {
-        var _this = this;
         this.round++;
         if (this.round >= this.maxRound) {
             this.endGame();
             return;
         }
-        this.drawer = this.drawOrder[this.round];
-        this.players.forEach(function (p) {
-            var _a, _b;
-            if (p.id === ((_a = _this.drawer) === null || _a === void 0 ? void 0 : _a.id)) {
-                p.send(JSON.stringify(__assign({ sender: 'server', type: 'startDrawing', words: _this.getRandomWords(3) }, _this.getGameInfo())));
-            }
-            else {
-                p.send(JSON.stringify({
-                    sender: 'server',
-                    type: 'nextRound',
-                    gameId: _this.id,
-                    drawer: (_b = _this.players.find(function (p) { var _a; return p.id === ((_a = _this.drawer) === null || _a === void 0 ? void 0 : _a.id); })) === null || _b === void 0 ? void 0 : _b.username,
-                }));
-            }
-        });
+        this.drawer = this.drawOrder[0];
+        this.nextDrawer();
     };
     SketchGameManager.prototype.endGame = function () {
         var _this = this;
@@ -258,7 +269,12 @@ var SketchGameManager = /** @class */ (function () {
                 _this.stopTimer();
                 _this.nextDrawer();
             }
-            _this.broadcastGameEvent('timerUpdate', { time: _this.time });
+            if (_this.time === 40 || _this.time === 20) {
+                _this.broadcastGameEvent('timerUpdate', { time: _this.time, word: _this.getRandomPartOfWord() });
+            }
+            else {
+                _this.broadcastGameEvent('timerUpdate', { time: _this.time });
+            }
         }, 1000);
     };
     SketchGameManager.prototype.stopTimer = function () {

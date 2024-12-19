@@ -27,6 +27,7 @@ const messageHandlers = {
   joinSketchGame: (client: CustomWebSocket, message: ClientMessage) => handleJoinSketchGame(client, message),
   getSketchGame: (client: CustomWebSocket, message: ClientMessage) => handleGetSketchGame(client, message),
   launchSketchGame: (client: CustomWebSocket, message: ClientMessage) => handleLaunchSketchGame(client, message),
+  chooseWord: (client: CustomWebSocket, message: ClientMessage) => handleChooseWord(client, message),
   guess: (client: CustomWebSocket, message: ClientMessage) => handleGuess(client, message),
   canvas: (client: CustomWebSocket, message: ClientMessage) => handleCanvas(client, message),
   hello: (client: CustomWebSocket, message: ClientMessage) => console.log('Hello', client.id)
@@ -40,6 +41,18 @@ const handleCanvas = (client: CustomWebSocket, message: ClientMessage) => {
   game.canvas = message.image;
 
   game.sendCanvas();
+}
+
+const handleChooseWord = (client: CustomWebSocket, message: ClientMessage) => {
+  const game = state.sketchGames.find((g) => g.id === message.game);
+
+  if (!game) return;
+
+  const player = game.players.find((p) => p.id === client.id);
+
+  if (!player) return;
+
+  game.chooseWord(player, message.value);
 }
 
 // Fonction permettant d'envoyer un message à une liste d'utilisateur
@@ -110,8 +123,8 @@ const handleGetSketchGame = (client: CustomWebSocket, message: ClientMessage) =>
 
 const handleLaunchSketchGame = (client: CustomWebSocket, message: ClientMessage) => {
   const game = state.sketchGames.find((g) => g.id === message.game);
-
   if (game && game.owner.id === client.id) {
+    console.log('Launching game:', game);
     game.startGame();
   }
 }

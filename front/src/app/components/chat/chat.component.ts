@@ -39,12 +39,15 @@ export class ChatComponent implements OnInit {
     this.wsStore.getWebSocket().addEventListener('message', (event) => {
       try {
         const message = JSON.parse(event.data);
-        console.log('message:', message);
         if (message.type === 'message') {
           this.writtingUsers = message.writtingUsers;
           this.addMessage(message);
         } else if (message.type === 'writting') {
           this.writtingUsers = message.writtingUsers
+        } else if (message.type === 'gameUpdated') {
+          this.players = message.players;
+        } else if (message.type === 'guess') {
+          this.addMessage(message);
         }
       } catch (e) {
         console.error('Invalid JSON format:', event.data);
