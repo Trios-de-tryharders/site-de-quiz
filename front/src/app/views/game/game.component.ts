@@ -48,6 +48,7 @@ export class GameComponent {
       startDrawing: () => this.handleUpdateGame(message, false),
       wordChosen: () => this.handleWordChosen(message),
       timerUpdate: () => this.handleTimerUpdate(message),
+      nextDrawer: () => this.handleUpdateGame(message, false),
     };
 
     if (handlers[message.type]) {
@@ -147,8 +148,8 @@ export class GameComponent {
 
   handleTimerUpdate(message: any) {
     this.time = message.time;
-    if (this.word) {
-      this.time = message.time;
+    if (message.word && (this.username !== this.drawer || !message.roundWinners.includes(this.username))) {
+      this.word = message.word;
     }
 
     if (message.time === 0) {

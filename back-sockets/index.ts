@@ -124,7 +124,6 @@ const handleGetSketchGame = (client: CustomWebSocket, message: ClientMessage) =>
 const handleLaunchSketchGame = (client: CustomWebSocket, message: ClientMessage) => {
   const game = state.sketchGames.find((g) => g.id === message.game);
   if (game && game.owner.id === client.id) {
-    console.log('Launching game:', game);
     game.startGame();
   }
 }

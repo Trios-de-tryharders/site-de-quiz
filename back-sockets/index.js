@@ -105,7 +105,6 @@ var handleGetSketchGame = function (client, message) {
 var handleLaunchSketchGame = function (client, message) {
     var game = state.sketchGames.find(function (g) { return g.id === message.game; });
     if (game && game.owner.id === client.id) {
-        console.log('Launching game:', game);
         game.startGame();
     }
 };

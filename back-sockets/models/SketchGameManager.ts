@@ -22,6 +22,7 @@ export class SketchGameManager implements SketchGames {
     timerId?: NodeJS.Timeout;
     writtingUsers: PlayerWebSocket[] = [];
     typingTimeouts: {} = {};
+    hiddenWord: string = '';
 
     constructor(gameId: string, owner: PlayerWebSocket, maxRound: number = 3, roundDuration: number = 60) {
         this.id = gameId;
@@ -104,8 +105,12 @@ export class SketchGameManager implements SketchGames {
         if (!this.players.find((p) => p.id === player.id)) {
             
             this.players.push(player);
-            this.drawOrder.push(player);
-             this.broadcastGameEvent('playerJoined',
+
+            if (this.state === 'playing' || this.state === 'chooseWord') {
+                this.drawOrder.push(player);
+            }
+
+            this.broadcastGameEvent('playerJoined',
                 { username: player.username }
             );
         }
@@ -149,7 +154,6 @@ export class SketchGameManager implements SketchGames {
                 players: this.players.map((p) => p.username),
                 writtingUsers: this.writtingUsers
             }, clients);
-        
     }
 
     startGame() {
@@ -162,16 +166,23 @@ export class SketchGameManager implements SketchGames {
         this.round = 0;
         this.roundWinners = [];
         this.words = [];
-
+        this.drawOrder = [];
+        this.hiddenWord = '';
         this.canvas = '';
 
         this.sendCanvas();
 
         const playersCopy = [...this.players];
+        console.log('Players Copy Before for', playersCopy.map((p) => p.username))
+        console.log('Draw Order Before for', this.drawOrder.map((p) => p.username))
 
-        for (let i = 0; i < this.players.length; i++) {
-            const player = playersCopy.splice(Math.floor(Math.random() * playersCopy.length - 1), 1)[0];
+        while (playersCopy.length > 0) {
+            const randomIndex = Math.floor(Math.random() * playersCopy.length);
+            const player = playersCopy.splice(randomIndex, 1)[0]; // Retire un élément aléatoire
+            console.log('Player', player.username);
             this.drawOrder.push(player);
+            console.log('Draw Order', this.drawOrder.map((p) => p.username));
+            console.log('Players Copy', playersCopy.map((p) => p.username));
         }
 
         this.drawer = this.drawOrder[0];
@@ -203,6 +214,7 @@ export class SketchGameManager implements SketchGames {
             this.word = word;
             this.state = 'playing';
             this.time = this.roundDuration;
+            this.hiddenWord = this.getHiddenWord();
             this.startTimer();
             this.canvas = '';
 
@@ -215,12 +227,11 @@ export class SketchGameManager implements SketchGames {
     }
 
     getRandomPartOfWord() {
-        let hiddenWord: string = this.getHiddenWord();
+        let hiddenWord: string = this.hiddenWord;
         const i = Math.floor(Math.random() * hiddenWord.length - 1);
         let hiddenWordArray = hiddenWord.split('');
         hiddenWordArray[i] = this.word[i];
-        hiddenWord = hiddenWordArray.join('');
-        return hiddenWord;
+        this.hiddenWord = hiddenWordArray.join('');
     }
 
     guessWord(player: PlayerWebSocket, word: ClientMessage) {
@@ -262,8 +273,9 @@ export class SketchGameManager implements SketchGames {
     nextDrawer() {
         const index = this.drawOrder.indexOf(this.drawer as PlayerWebSocket);
         this.word = '';
-        this.words = [];
-        
+        this.words = this.getRandomWords(3);
+        this.hiddenWord = '';
+    
         if (index === this.drawOrder.length) {
             this.nextRound();
         } else {
@@ -271,13 +283,22 @@ export class SketchGameManager implements SketchGames {
             this.state = 'chooseWord';
 
             this.players.forEach((p) => {
-                p.send(
+                if (p.id === this.drawer?.id) {
+                    p.send(
+                        JSON.stringify({
+                            ...this.getGameInfo(),
+                            type: 'startDrawing',
+                            words: this.words,
+                        })
+                    );
+                } else {
+                    p.send(
                     JSON.stringify({
-                        sender: 'server',
-                        type: 'nextDrawer',
                         ...this.getGameInfo(),
+                        type: 'nextDrawer',
                     })
-                );
+                    );
+                }
             });
         }
     }
@@ -337,7 +358,9 @@ export class SketchGameManager implements SketchGames {
             }
 
             if (this.time === 40 || this.time === 20) {
-                this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.getRandomPartOfWord() });
+                this.getRandomPartOfWord();
+                console.log('Hidden word: ', this.hiddenWord)
+                this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.hiddenWord });
             } else {
                 this.broadcastGameEvent('timerUpdate', { time: this.time });
             }
