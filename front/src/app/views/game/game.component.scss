@@ -1,10 +1,11 @@
 // Variables
 @import '../../../styles/variables.scss';
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
 
 body, hmtl {
   margin: 0;
   padding: 0;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 16px;
   color: $text-color;
   overflow: hidden;
@@ -47,7 +48,7 @@ body, hmtl {
   display: flex;
   justify-content: space-between;
   align-items: center;
-
+  gap: 1rem;
   h1 {
     font-size: 2rem;
     color: $secondary-color;
@@ -67,6 +68,7 @@ body, hmtl {
   padding: 0.5rem 1rem;
   border-radius: 20px;
   text-transform: initial;
+  text-align: center;
 }
 
 .timer {
@@ -78,6 +80,7 @@ body, hmtl {
 // Game Board Layout
 .game-board {
   display: flex;
+  justify-content: center;
   gap: 2rem;
 }
 
@@ -108,16 +111,18 @@ body, hmtl {
 // Players Panel
 .players-panel {
   @include card;
+  box-shadow: none;
   width: 150px;
   border-radius: 0;
+  margin: 1rem;
+  background-color: rgb(242, 242, 242);
+  border-radius: 8px;
 
   h3 {
     font-size: 1rem;
     font-weight: 500;
     margin-top: 0;
     color: $secondary-color;
-    border-bottom: 2px solid $background-color;
-    padding-bottom: 0.5rem;
   }
 }
 
@@ -129,9 +134,16 @@ body, hmtl {
   li {
     display: flex;
     justify-content: space-between;
-    padding: 0.5rem;
     border-radius: $border-radius;
     margin-bottom: 0.5rem;
+
+    .player-name {
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
+      width: 100%;
+      margin-right: 10px;
+    }
 
     &.active {
       background-color: rgba($primary-color, 0.1);

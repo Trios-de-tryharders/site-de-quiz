@@ -6,6 +6,14 @@ import { DrawingCanvasComponent } from '../../components/drawing-canvas/drawing-
 import { ChatComponent } from '../../components/chat/chat.component';
 import { FormsModule } from '@angular/forms';
 
+enum GameState {
+  Waiting = 'waiting',
+  Playing = 'playing',
+  ChooseWord = 'chooseWord',
+  Ended = 'ended',
+  Timeout = 'timeout'
+}
+
 @Component({
   selector: 'app-game',
   imports: [DrawingCanvasComponent, ChatComponent, FormsModule],
@@ -13,31 +21,44 @@ import { FormsModule } from '@angular/forms';
   styleUrl: './game.component.scss'
 })
 export class GameComponent {
+  // --------------------------------------
+  // Propriétés
+  // --------------------------------------
   error = '';
   inputUsername = '';
-
-  connected: boolean = false;
-  owner: string = '';
   username = '';
-  players: { username: string, score: number }[] = [];
-  state: string = 'waiting';
+  gameId!: string;
+
+  // États du jeu
+  state: string = GameState.Waiting;
+  canDraw: boolean = false;
+  logging: boolean = false;
+  connected: boolean = false;
+  joining: boolean = false;
+
+  // Joueurs et scores
+  owner: string = '';
+  players: { username: string; score: number }[] = [];
   drawer: string = '';
   drawOrder: string[] = [];
+
+  // Informations de la partie
   word: string = '';
   words: string[] = [];
   time!: number;
-  roundWinners: string[] = [];
   round: number = 0;
   maxRound!: number;
-  messages: {username: string, message: string}[] = [];
-  winner!: { username: string, score: number };
+  roundWinners: string[] = [];
+  winner!: { username: string; score: number };
 
-  logging: boolean = false;
-  gameId!: string;
-  canDraw: boolean = false;
+  // Messages
+  messages: { username: string; message: string }[] = [];
 
   constructor(private cookieService: CookieService, private route: Router, private activatedRoute: ActivatedRoute, private wsStore: WebSocketStoreService) {
     this.username = this.cookieService.get('username') ?? '';
+    if(!this.username) {
+      this.error = 'Please enter a valid username';
+    }
     this.activatedRoute.params.subscribe(params => {
         this.gameId = params['id'];
     });
@@ -63,6 +84,9 @@ export class GameComponent {
             }
           });
           this.wsStore.sendMessage({type: 'getSketchGame', game: this.gameId})
+          if (this.username) {
+            this.wsStore.sendMessage({ type: 'connect', username: this.username });
+          }
         }
     }
   }
@@ -72,15 +96,42 @@ export class GameComponent {
       gameUpdated: () => this.handleUpdateGame(message),
       getSketchGame: () => this.handleGetSketchGame(message),
       login: () => this.handleLogin(message),
-      playerJoined: () => this.handleUpdateGame(message),
-      playerLeft: () => this.handleUpdateGame(message),
-      startDrawing: () => this.handleUpdateGame(message, false),
-      wordChosen: () => this.handleWordChosen(message),
+      playerJoined: () => {
+        this.handleUpdateGame(message);
+        this.playSound('audio/join.wav');
+      },
+      playerLeft: () => {
+        this.handleUpdateGame(message);
+        this.playSound('audio/leave.wav');
+      },
+      startDrawing: () => {
+        this.handleUpdateGame(message, false);
+      },
+      wordChosen: () => {
+        this.handleWordChosen(message);
+      },
       timerUpdate: () => this.handleTimerUpdate(message),
-      nextDrawer: () => this.handleUpdateGame(message, false),
-      gameEnded: () => this.handleUpdateGame(message, false),
-      foundWord: () => this.handleFoundWord(message),
+      nextDrawer: () => {
+        this.handleUpdateGame(message, false);
+        if (message.time <= 10) {
+          this.playSound('audio/clock.wav');
+        }
+      },
+      gameEnded: () => {
+        this.handleUpdateGame(message, false);
+        this.playSound('audio/win.wav');
+      },
+      foundWord: () => {
+        this.handleFoundWord(message);
+        this.playSound('audio/foundWord.wav');
+      },
       guess: () => this.handleUpdateGame(message),
+      revealWord: () => {
+        this.handleFoundWord(message);
+        if (!message.roundWinners.find((p: { username: string }) => p.username === this.username)) {
+          this.playSound('audio/error.wav');
+        }
+      },
     };
 
     if (handlers[message.type]) {
@@ -88,11 +139,8 @@ export class GameComponent {
     }
   }
 
-  ngOnInit() {
-    this.username = this.cookieService.get('username');
-    if (!this.username) {
-      this.promptForUsername();
-    }
+  private requestGameData(): void {
+    this.wsStore.sendMessage({ type: 'getSketchGame', game: this.gameId });
   }
 
   promptForUsername() {
@@ -111,7 +159,7 @@ export class GameComponent {
       if (message.players.find((p: { username: string, score: number }) => p.username === this.username)) {
         this.connected = true;
         this.handleUpdateGame(message);
-      } else  if (this.logging) {
+      } else if (this.logging) {
         this.connected = true;
         this.logging = false;
         this.wsStore.sendMessage({ type: 'joinSketchGame', username: this.username, game: this.gameId });
@@ -128,41 +176,29 @@ export class GameComponent {
     }
   }
 
-  handleUpdateGame(message: any, forceCanDraw?: boolean) {
-    if (message.state === 'waiting') {
-      this.owner = message.owner;
-      this.players = message.players.map((p: { username: string, score: number }) => ({ ...p }));
-      this.state = message.state;
-      this.canDraw = true;
-    } else if (message.state === 'playing' || message.state === 'chooseWord') {
-      this.owner = message.owner;
-      this.players = message.players.map((p: { username: string, score: number }) => ({ ...p }));
-      this.state = message.state;
-      this.drawer = message.drawer;
-      this.drawOrder = message.drawOrder ?? this.drawOrder;
-      this.time = message.time;
-      this.roundWinners = message.roundWinners ?? this.roundWinners;
-      this.round = message.round;
-      this.maxRound = message.maxRound;
-      if (message.state === 'chooseWord') {
-        if ( this.drawer === this.username) {
-          this.words = message.words ?? this.words;
-        }
-        this.canDraw = false;
-      }
-    } else if (message.state === 'ended') {
-      this.owner = message.owner;
-      this.players = message.players.map((p: { username: string, score: number }) => ({ ...p }));
-      this.state = message.state;
-      this.roundWinners = message.roundWinners ?? this.roundWinners;
-      this.round = message.round;
+  handleUpdateGame(message: any, forceCanDraw?: boolean): void {
+    const { state, players, owner, round, maxRound, roundWinners, time, drawer, drawOrder, words } = message;
+
+    this.state = state;
+    this.players = players ?? [];
+    this.owner = owner;
+    this.round = round;
+    this.maxRound = maxRound;
+    this.roundWinners = roundWinners ?? [];
+    this.time = time;
+    this.drawer = drawer;
+    this.drawOrder = drawOrder ?? this.drawOrder;
+
+    if (state === GameState.ChooseWord && this.drawer === this.username) {
+      this.words = words ?? [];
+      this.canDraw = false;
+    } else if (state === GameState.Timeout) {
+      this.canDraw = false;
+    } else if (state === GameState.Ended) {
       this.winner = message.winner;
     }
 
-    if (forceCanDraw) {
-      this.canDraw = forceCanDraw;
-    }
-
+    if (forceCanDraw) this.canDraw = forceCanDraw;
   }
 
   handleWordChosen(message: any) {
@@ -179,10 +215,16 @@ export class GameComponent {
   handleTimerUpdate(message: any) {
     this.time = message.time;
 
-    this.word = message.word;
+    if (message.state === 'playing') {
+      this.word = message.word;
+    }
 
     if (message.time === 0) {
       this.canDraw = false;
+    }
+
+    if (message.state === 'timeout') {
+      this.handleUpdateGame(message, false);
     }
   }
 
@@ -196,21 +238,16 @@ export class GameComponent {
     this.wsStore.sendMessage({ type: 'chooseWord', game: this.gameId, value: word });
   }
 
-  connectToGame() {
-    if (!this.inputUsername || /^\s*$/.test(this.inputUsername)) {
-      this.error = 'Please enter a valid username';
-      return;
-    }
-    this.cookieService.set('username', this.inputUsername);
-    this.username = this.inputUsername;
-    this.connectToWebSocket();
-    this.wsStore.sendMessage({ type: 'connect', username: this.inputUsername, game: this.gameId });
-    this.wsStore.sendMessage({ type: 'joinSketchGame', username: this.inputUsername, game: this.gameId });
-  }
-
   handleFoundWord(message: any) {
     this.roundWinners = message.roundWinners;
     this.word = message.word;
+    console.log('word:', message.word);
+    this.playSound('audio/foundWord.mp3');
+  }
+
+  playSound(soundFilePath: string): void {
+    const audio = new Audio(soundFilePath);
+    audio.play().catch(error => console.error('Error playing sound:', error));
   }
 
   getStateBadge() {
@@ -222,20 +259,24 @@ export class GameComponent {
       return 'Chose a word';
     } else if (this.state === 'ended') {
       return 'Game Ended';
+    } else if (this.state === 'timeout') {
+      return 'Timeout';
     } else {
       return '';
     }
   }
 
   getStateText() {
-      if (this.state === 'waiting') {
-        return 'Waiting for players';
-      } else if (this.state === 'playing') {
-        return 'Playing';
-      } else if (this.state === 'chooseWord') {
-        return 'A player is choosing a word';
-      } else if (this.state === 'ended') {
-        return 'Game has ended and the winner is ' + this.winner.username;
+    if (this.state === 'waiting') {
+      return 'Waiting for players';
+    } else if (this.state === 'playing') {
+      return 'Playing';
+    } else if (this.state === 'chooseWord') {
+      return 'A player is choosing a word';
+    } else if (this.state === 'ended') {
+      return 'Game has ended and the winner is ' + this.winner.username;
+    } else if (this.state === 'timeout') {
+      return 'Time is up!';
     } else {
       return '';
     }

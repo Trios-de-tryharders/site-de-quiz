@@ -79,6 +79,7 @@ export class DrawingCanvasComponent implements AfterViewInit {
   });
     canvas.addEventListener('mousemove', this.draw.bind(this));
     canvas.addEventListener('mouseup', this.stopDrawing.bind(this));
+    canvas.addEventListener('mouseleave', this.stopDrawing.bind(this)); // Stop drawing when the mouse leaves the canvas
   }
 
   startDrawing(event: MouseEvent) {
@@ -98,7 +99,7 @@ export class DrawingCanvasComponent implements AfterViewInit {
     this.ctx.lineCap = 'round';
     this.ctx.stroke();
 
-    if (this.oldCanvas.includes(this.exportCanvas()) && this.gameState === 'playing') {
+    if (this.gameState === 'playing' && this.isDrawer && this.canDraw) {
       if (this.timeoutId) {
         clearTimeout(this.timeoutId); // Annule le timeout précédent
       }

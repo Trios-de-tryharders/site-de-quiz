@@ -60,7 +60,7 @@
                 </div>
             } @else {
                 <div class="waiting-screen">
-                    <h2>Game has ended and {{ winner.username }} want to go for another round ?</h2>
+                    <h2>Game has ended, {{ winner.username }} is the winner ! Want to go for another round ?</h2>
                 </div>
                 @if (this.username === owner) {
                     <button class="primary-button" (click)="launchGame()">Start Game</button>
@@ -78,6 +78,14 @@
               </div>
             </div>
           } 
+
+          @if (state === 'timeout') {
+            <div class="game-info">
+              <div class="current-word">
+                <h2>The word was: {{ word }}</h2>
+              </div>
+            </div>
+          }  
         
           @if (state === 'playing') {
             <div class="game-info">
@@ -107,11 +115,15 @@
       </header>
       <div class="game-panel">
         <div class="players-panel">
-          <h3>Players</h3>
+          <div class="flex items-center justify-center gap-1 w-full">
+            <img class="w-6" src="images/player.svg">
+            <h3>Players</h3>
+          </div>
+          <hr class="my-2">
           <ul class="players-list">
             @for (player of players; track player) {
               <li [class.active]="player.username === drawer">
-                <span class="player-name">{{ player.username }}</span>
+                <span class="player-name" [title]="player.username">{{ player.username }}</span>
                 <span class="winner-badge">{{ player.score }}</span>
                 @if (roundWinners.includes(player.username)) {
                   <span class="winner-badge">✓</span>

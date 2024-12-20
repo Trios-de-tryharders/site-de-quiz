@@ -63,7 +63,7 @@ export class SketchGameManager implements SketchGames {
     }
 
     getGameInfo() {
-        if (this.state === 'playing' || this.state === 'chooseWord') {
+        if (this.state === 'playing' || this.state === 'chooseWord' || this.state === 'timeout') {
             return {
                 sender: 'server',
                 id: this.id,
@@ -215,6 +215,8 @@ export class SketchGameManager implements SketchGames {
             }
             
         });
+        this.time = 15;
+        this.startTimer();
     }
 
     chooseWord(player: PlayerWebSocket, word: string) {
@@ -227,6 +229,8 @@ export class SketchGameManager implements SketchGames {
             this.canvas = '';
 
             this.broadcastGameEvent('wordChosen', { username: this.drawer?.username, word: this.getHiddenWord() });
+            this.time = this.roundDuration
+            this.startTimer();
         }
     }
 
@@ -261,8 +265,9 @@ export class SketchGameManager implements SketchGames {
             this.broadcastGameEvent('guess', { isRight: true, value: `${player.username} has found the word !` });
             this.broadcastGameEvent('wordFound', { username: player.username, word: this.word }, [player]);
             if (this.roundWinners.length === this.players.length - 1) {
+                this.broadcastGameEvent('revealWord', { value: `The word was ${this.word}`, word: this.word });
                 this.stopTimer();
-                this.nextDrawer();
+                this.timeout();
             }
         } else if (this.isWordClose(word.value) && this.time > 0 && !this.roundWinners.find((p) => p.id === player.id) && !this.isPlayerDrawer(player)) {
             player.send(
@@ -325,6 +330,10 @@ export class SketchGameManager implements SketchGames {
             }
         });
 
+        this.time = 15;
+        this.state = 'chooseWord';
+        this.startTimer();
+
         this.drawindex++; // Incrémente après avoir défini le dessinateur
     }
 
@@ -338,6 +347,12 @@ export class SketchGameManager implements SketchGames {
         this.drawindex = 0;
         this.drawer = this.drawOrder[0];
         this.nextDrawer();
+    }
+
+    timeout() {
+        this.state = 'timeout'
+        this.time = 10;
+        this.startTimer()
     }
 
     endGame() {
@@ -374,28 +389,58 @@ export class SketchGameManager implements SketchGames {
     }
 
     startTimer() {
-        this.stopTimer(); // Assure-toi d'arrêter un timer existant avant d'en démarrer un nouveau
+        this.stopTimer();
         this.timerId = setInterval(() => {
             this.time -= 1;
 
-            if (this.time <= 0) {
-                this.stopTimer();
-                this.nextDrawer();
-            }
-
-            if (this.time === 40 || this.time === 20) {
-                this.getRandomPartOfWord();
-                console.log(this.hiddenWord);
-                this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.hiddenWord }, [...this.players.filter((p) => p.id !== this.drawer?.id && !this.roundWinners.find((player) => player.id === p.id))]);
-            } else {
-                this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.hiddenWord }, [...this.players.filter((p) => p.id !== this.drawer?.id && !this.roundWinners.find((player) => player.id === p.id))]);
-                if (this.drawer) {
-                    this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.word }, [this.drawer, ...this.roundWinners]);
-                }
-                
-            }
+            if (this.state === 'playing') this.handlePlayingTimerUpdate();
+            else if (this.state === 'timeout') this.handleTimeoutUpdate();
+            else if (this.state === 'chooseWord') this.handleWordTimeout();
+            else if (this.state === 'ended') this.stopTimer();
+            console.log(this.state, this.time)
             
         }, 1000);
+    }
+
+    handlePlayingTimerUpdate() {
+        if (this.time <= 0) {
+            this.stopTimer();
+            if (this.round >= this.maxRound) {
+                this.endGame();
+            } else {
+                this.timeout();
+            }
+        }
+
+        if (this.time === 40 || this.time === 20) {
+            this.getRandomPartOfWord();
+            console.log(this.hiddenWord);
+            this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.hiddenWord }, [...this.players.filter((p) => p.id !== this.drawer?.id && !this.roundWinners.find((player) => player.id === p.id))]);
+        } else {
+            this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.hiddenWord }, [...this.players.filter((p) => p.id !== this.drawer?.id && !this.roundWinners.find((player) => player.id === p.id))]);
+            if (this.drawer) {
+                this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.word }, [this.drawer, ...this.roundWinners]);
+            }
+            
+        }
+    }
+
+    handleTimeoutUpdate() {
+        this.broadcastGameEvent('timerUpdate', { time: this.time });
+
+        if (this.time <= 0) {
+            this.stopTimer();
+            this.nextDrawer();
+        }
+    }
+
+    handleWordTimeout() {
+        this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.word });
+        if (this.time <= 0) {
+            this.stopTimer();
+            if (this.drawer)
+                this.chooseWord(this.drawer, this.words[Math.floor(Math.random() * this.words.length)]);
+        }
     }
 
     stopTimer() {

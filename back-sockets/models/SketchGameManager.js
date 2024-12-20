@@ -68,7 +68,7 @@ var SketchGameManager = /** @class */ (function () {
     };
     SketchGameManager.prototype.getGameInfo = function () {
         var _a, _b;
-        if (this.state === 'playing' || this.state === 'chooseWord') {
+        if (this.state === 'playing' || this.state === 'chooseWord' || this.state === 'timeout') {
             return {
                 sender: 'server',
                 id: this.id,
@@ -191,6 +191,8 @@ var SketchGameManager = /** @class */ (function () {
                 p.send(JSON.stringify(__assign(__assign({}, _this.getGameInfo()), { type: 'gameUpdated' })));
             }
         });
+        this.time = 15;
+        this.startTimer();
     };
     SketchGameManager.prototype.chooseWord = function (player, word) {
         var _a;
@@ -202,6 +204,8 @@ var SketchGameManager = /** @class */ (function () {
             this.startTimer();
             this.canvas = '';
             this.broadcastGameEvent('wordChosen', { username: (_a = this.drawer) === null || _a === void 0 ? void 0 : _a.username, word: this.getHiddenWord() });
+            this.time = this.roundDuration;
+            this.startTimer();
         }
     };
     SketchGameManager.prototype.getHiddenWord = function () {
@@ -230,8 +234,9 @@ var SketchGameManager = /** @class */ (function () {
             this.broadcastGameEvent('guess', { isRight: true, value: "".concat(player.username, " has found the word !") });
             this.broadcastGameEvent('wordFound', { username: player.username, word: this.word }, [player]);
             if (this.roundWinners.length === this.players.length - 1) {
+                this.broadcastGameEvent('revealWord', { value: "The word was ".concat(this.word), word: this.word });
                 this.stopTimer();
-                this.nextDrawer();
+                this.timeout();
             }
         }
         else if (this.isWordClose(word.value) && this.time > 0 && !this.roundWinners.find(function (p) { return p.id === player.id; }) && !this.isPlayerDrawer(player)) {
@@ -281,6 +286,9 @@ var SketchGameManager = /** @class */ (function () {
                 p.send(JSON.stringify(__assign(__assign({}, _this.getGameInfo()), { type: 'nextDrawer' })));
             }
         });
+        this.time = 15;
+        this.state = 'chooseWord';
+        this.startTimer();
         this.drawindex++; // Incrémente après avoir défini le dessinateur
     };
     SketchGameManager.prototype.nextRound = function () {
@@ -292,6 +300,11 @@ var SketchGameManager = /** @class */ (function () {
         this.drawindex = 0;
         this.drawer = this.drawOrder[0];
         this.nextDrawer();
+    };
+    SketchGameManager.prototype.timeout = function () {
+        this.state = 'timeout';
+        this.time = 10;
+        this.startTimer();
     };
     SketchGameManager.prototype.endGame = function () {
         var _this = this;
@@ -317,25 +330,57 @@ var SketchGameManager = /** @class */ (function () {
     };
     SketchGameManager.prototype.startTimer = function () {
         var _this = this;
-        this.stopTimer(); // Assure-toi d'arrêter un timer existant avant d'en démarrer un nouveau
+        this.stopTimer();
         this.timerId = setInterval(function () {
             _this.time -= 1;
-            if (_this.time <= 0) {
+            if (_this.state === 'playing')
+                _this.handlePlayingTimerUpdate();
+            else if (_this.state === 'timeout')
+                _this.handleTimeoutUpdate();
+            else if (_this.state === 'chooseWord')
+                _this.handleWordTimeout();
+            else if (_this.state === 'ended')
                 _this.stopTimer();
-                _this.nextDrawer();
-            }
-            if (_this.time === 40 || _this.time === 20) {
-                _this.getRandomPartOfWord();
-                console.log(_this.hiddenWord);
-                _this.broadcastGameEvent('timerUpdate', { time: _this.time, word: _this.hiddenWord }, __spreadArray([], _this.players.filter(function (p) { var _a; return p.id !== ((_a = _this.drawer) === null || _a === void 0 ? void 0 : _a.id) && !_this.roundWinners.find(function (player) { return player.id === p.id; }); }), true));
+            console.log(_this.state, _this.time);
+        }, 1000);
+    };
+    SketchGameManager.prototype.handlePlayingTimerUpdate = function () {
+        var _this = this;
+        if (this.time <= 0) {
+            this.stopTimer();
+            if (this.round >= this.maxRound) {
+                this.endGame();
             }
             else {
-                _this.broadcastGameEvent('timerUpdate', { time: _this.time, word: _this.hiddenWord }, __spreadArray([], _this.players.filter(function (p) { var _a; return p.id !== ((_a = _this.drawer) === null || _a === void 0 ? void 0 : _a.id) && !_this.roundWinners.find(function (player) { return player.id === p.id; }); }), true));
-                if (_this.drawer) {
-                    _this.broadcastGameEvent('timerUpdate', { time: _this.time, word: _this.word }, __spreadArray([_this.drawer], _this.roundWinners, true));
-                }
+                this.timeout();
             }
-        }, 1000);
+        }
+        if (this.time === 40 || this.time === 20) {
+            this.getRandomPartOfWord();
+            console.log(this.hiddenWord);
+            this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.hiddenWord }, __spreadArray([], this.players.filter(function (p) { var _a; return p.id !== ((_a = _this.drawer) === null || _a === void 0 ? void 0 : _a.id) && !_this.roundWinners.find(function (player) { return player.id === p.id; }); }), true));
+        }
+        else {
+            this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.hiddenWord }, __spreadArray([], this.players.filter(function (p) { var _a; return p.id !== ((_a = _this.drawer) === null || _a === void 0 ? void 0 : _a.id) && !_this.roundWinners.find(function (player) { return player.id === p.id; }); }), true));
+            if (this.drawer) {
+                this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.word }, __spreadArray([this.drawer], this.roundWinners, true));
+            }
+        }
+    };
+    SketchGameManager.prototype.handleTimeoutUpdate = function () {
+        this.broadcastGameEvent('timerUpdate', { time: this.time });
+        if (this.time <= 0) {
+            this.stopTimer();
+            this.nextDrawer();
+        }
+    };
+    SketchGameManager.prototype.handleWordTimeout = function () {
+        this.broadcastGameEvent('timerUpdate', { time: this.time, word: this.word });
+        if (this.time <= 0) {
+            this.stopTimer();
+            if (this.drawer)
+                this.chooseWord(this.drawer, this.words[Math.floor(Math.random() * this.words.length)]);
+        }
     };
     SketchGameManager.prototype.stopTimer = function () {
         if (this.timerId) {

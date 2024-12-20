@@ -1,4 +1,5 @@
 @import '../../../styles/variables.scss';
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
 
 .chat-container {
   display: flex;
@@ -6,7 +7,7 @@
   align-items: center;
   height: 100vh;
   background-color: $background-color;
-  font-family: Arial, sans-serif;
+  font-family: 'Montserrat', sans-serif;
   color: #333;
 
   // Section de connexion

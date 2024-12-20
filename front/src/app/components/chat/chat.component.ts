@@ -39,7 +39,7 @@ export class ChatComponent implements OnInit {
     this.wsStore.getWebSocket().addEventListener('message', (event) => {
       try {
         const message = JSON.parse(event.data);
-        if (message.type === 'message') {
+        if (message.type === 'message' || message.type === 'revealWord') {
           this.writtingUsers = message.writtingUsers ?? this.writtingUsers;
           this.addMessage(message);
         } else if (message.type === 'writting') {
