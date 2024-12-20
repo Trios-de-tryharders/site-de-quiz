@@ -27,7 +27,7 @@ export class HomeComponent {
   }
 
   ngOnInit() {
-    this.wsStore.connect('ws://' + window.location.hostname + ':8081');
+    this.wsStore.connect('ws://back-sockets-production.up.railway.app');
 
     this.wsStore.getWebSocket().addEventListener('message', (event) => {
       try {

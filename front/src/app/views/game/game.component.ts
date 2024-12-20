@@ -73,7 +73,7 @@ export class GameComponent {
       });
       this.wsStore.sendMessage({type: 'getSketchGame', game: this.gameId})
     } else {
-        this.wsStore.connect('ws://'+ window.location.hostname +':8081');
+    this.wsStore.connect('ws://back-sockets-production.up.railway.app:8081');
         this.wsStore.getWebSocket().onopen = () => {
           this.wsStore.getWebSocket().addEventListener('message', (event) => {
             try {
