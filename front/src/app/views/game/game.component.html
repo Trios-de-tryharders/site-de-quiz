@@ -85,7 +85,11 @@
                 @if (drawer === username) {
                   <h2>Draw: {{ word }}</h2>
                 } @else {
-                  <h2>Guess the word: {{ word }}</h2>
+                  <h2>Guess the word: 
+                    @for (letter of word; track i; let i = $index) {
+                      <span>{{letter}}</span>
+                    }
+                  </h2>
                 }
               </div>
               <div class="game-stats">

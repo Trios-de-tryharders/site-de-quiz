@@ -67,7 +67,7 @@ var SketchGameManager = /** @class */ (function () {
         this.broadcastGameEvent('canvas');
     };
     SketchGameManager.prototype.getGameInfo = function () {
-        var _a;
+        var _a, _b;
         if (this.state === 'playing' || this.state === 'chooseWord') {
             return {
                 sender: 'server',
@@ -102,7 +102,7 @@ var SketchGameManager = /** @class */ (function () {
                 owner: this.owner.username,
                 players: this.players.map(function (p) { return ({ username: p.username, score: p.score }); }),
                 state: this.state,
-                winner: this.players.reduce(function (a, b) { return (a.score > b.score ? a : b); }),
+                winner: ((_b = this.players) === null || _b === void 0 ? void 0 : _b.reduce(function (a, b) { return (a.score > b.score ? a : b); })) || this.players[0],
             };
         }
     };

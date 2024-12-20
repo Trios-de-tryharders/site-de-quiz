@@ -95,7 +95,7 @@ export class SketchGameManager implements SketchGames {
                 owner: this.owner.username,
                 players: this.players.map((p) => ({ username: p.username, score: p.score })),
                 state: this.state,
-                winner: this.players.reduce((a, b) => (a.score > b.score ? a : b)),
+                winner: this.players?.reduce((a, b) => (a.score > b.score ? a : b)) || this.players[0],
             }
         }
     }

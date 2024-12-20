@@ -32,6 +32,7 @@ export class GameComponent {
   messages: {username: string, message: string}[] = [];
   winner!: { username: string, score: number };
 
+  logging: boolean = false;
   gameId!: string;
   canDraw: boolean = false;
 
@@ -40,6 +41,30 @@ export class GameComponent {
     this.activatedRoute.params.subscribe(params => {
         this.gameId = params['id'];
     });
+    if (this.wsStore.getWebSocket()){
+      this.wsStore.getWebSocket().addEventListener('message', (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          this.handleWebSocketMessage(message);
+        } catch (e) {
+          console.error('Invalid JSON format:', event.data);
+        }
+      });
+      this.wsStore.sendMessage({type: 'getSketchGame', game: this.gameId})
+    } else {
+        this.wsStore.connect('ws://'+ window.location.hostname +':8081');
+        this.wsStore.getWebSocket().onopen = () => {
+          this.wsStore.getWebSocket().addEventListener('message', (event) => {
+            try {
+              const message = JSON.parse(event.data);
+              this.handleWebSocketMessage(message);
+            } catch (e) {
+              console.error('Invalid JSON format:', event.data);
+            }
+          });
+          this.wsStore.sendMessage({type: 'getSketchGame', game: this.gameId})
+        }
+    }
   }
 
   private handleWebSocketMessage(message: any): void {
@@ -67,8 +92,6 @@ export class GameComponent {
     this.username = this.cookieService.get('username');
     if (!this.username) {
       this.promptForUsername();
-    } else {
-      this.connectToWebSocket();
     }
   }
 
@@ -77,48 +100,20 @@ export class GameComponent {
   }
 
   connectToWebSocket() {
-    if (this.wsStore.getWebSocket()) {
-      console.log('connected to websocket');
-      this.wsStore.sendMessage({type: 'getSketchGame', game: this.gameId})
-      this.wsStore.getWebSocket().addEventListener('message', (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          this.handleWebSocketMessage(message);
-        } catch (e) {
-          console.error('Invalid JSON format:', event.data);
-        }
-      });
-    } else {
-      console.log('connecting to websocket');
-      console.log(this.username);
       this.username = this.inputUsername
-      this.wsStore.connect('ws://'+ window.location.hostname +':8081');
-      this.wsStore.getWebSocket().onopen = () => {
-        this.wsStore.getWebSocket().addEventListener('message', (event) => {
-          try {
-          const message = JSON.parse(event.data);
-
-          this.handleWebSocketMessage(message);
-        } catch (e) {
-          console.error('Invalid JSON format:', event.data);
-        }
-        });
-        this.wsStore.sendMessage({ type: 'connect', username: this.username });
-      }
-    }
+      this.wsStore.sendMessage({ type: 'connect', username: this.username });
   }
 
   handleGetSketchGame(message: any) {
-    console.log('getSketchGame:', message);
     if (message.state === 'notFound') {
       this.route.navigate(['/']);
-    } else {
+    } else if (this.username) {
       if (message.players.find((p: { username: string, score: number }) => p.username === this.username)) {
         this.connected = true;
         this.handleUpdateGame(message);
-      } else {
+      } else  if (this.logging) {
         this.connected = true;
-        console.log('joining game:', this.username, this.gameId);
+        this.logging = false;
         this.wsStore.sendMessage({ type: 'joinSketchGame', username: this.username, game: this.gameId });
       }
     }
@@ -126,7 +121,7 @@ export class GameComponent {
 
   handleLogin(message: any) {
     if (message.success) {
-      console.log('login:', message);
+      this.logging = true;
       this.wsStore.sendMessage({type: 'getSketchGame', game: this.gameId})
     } else {
       this.error = 'Username already taken';
@@ -134,7 +129,6 @@ export class GameComponent {
   }
 
   handleUpdateGame(message: any, forceCanDraw?: boolean) {
-    console.log('updateGame:', message);
     if (message.state === 'waiting') {
       this.owner = message.owner;
       this.players = message.players.map((p: { username: string, score: number }) => ({ ...p }));
@@ -152,7 +146,7 @@ export class GameComponent {
       this.maxRound = message.maxRound;
       if (message.state === 'chooseWord') {
         if ( this.drawer === this.username) {
-          this.words = message.words;
+          this.words = message.words ?? this.words;
         }
         this.canDraw = false;
       }
@@ -163,7 +157,6 @@ export class GameComponent {
       this.roundWinners = message.roundWinners ?? this.roundWinners;
       this.round = message.round;
       this.winner = message.winner;
-      console.log('winner:', this.winner, 'message:', message.winner);
     }
 
     if (forceCanDraw) {
